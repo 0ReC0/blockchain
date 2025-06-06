@@ -3,14 +3,17 @@ package p2p
 // запуск узла
 
 import (
-	"../gossip"
-	"../peer"
+	gossip "../gossip"
+	peer "../peer"
 )
 
 func StartNetwork() {
 	node := NewNode("node1", ":3000")
 	node.PeerMgr.AddPeer(peer.NewPeer("peer1", ":3001"))
 	node.Start()
+
+	go peer.BroadcastPresence(node.Addr)
+	go peer.ListenForPeers()
 
 	// Отправка тестового блока
 	msg := &gossip.Message{

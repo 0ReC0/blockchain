@@ -3,8 +3,8 @@ package p2p
 // точка входа узла
 
 import (
+	"crypto/tls"
 	"fmt"
-	"net"
 
 	"../gossip"
 	"../peer"
@@ -26,20 +26,26 @@ func NewNode(id, addr string) *Node {
 
 func (n *Node) Start() {
 	fmt.Printf("Node %s started at %s\n", n.ID, n.Addr)
-	go n.listen()
+	go n.listenTLS()
 }
 
-func (n *Node) listen() {
-	listener, _ := net.Listen("tcp", n.Addr)
+func (n *Node) listenTLS() {
+	config := GenerateTLSConfig()
+	listener, _ := tls.Listen("tcp", n.Addr, config)
 	for {
 		conn, _ := listener.Accept()
-		go n.handleConnection(conn)
+		go n.handleSecureConnection(conn)
 	}
 }
 
-func (n *Node) handleConnection(conn net.Conn) {
+func (n *Node) handleSecureConnection(conn *tls.Conn) {
+	if err := n.PerformHandshake(conn); err != nil {
+		fmt.Printf("Handshake failed: %v\n", err)
+		return
+	}
+
 	buf := make([]byte, 4096)
 	n, _ := conn.Read(buf)
 	msg, _ := gossip.DecodeMessage(buf[:n])
-	fmt.Printf("Received message from %s: %s\n", msg.From, msg.Type)
+	fmt.Printf("Secure message from %s: %s\n", msg.From, msg.Type)
 }
