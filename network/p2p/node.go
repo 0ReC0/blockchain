@@ -39,13 +39,33 @@ func (n *Node) listenTLS() {
 }
 
 func (n *Node) handleSecureConnection(conn *tls.Conn) {
+	defer conn.Close()
+
 	if err := n.PerformHandshake(conn); err != nil {
 		fmt.Printf("Handshake failed: %v\n", err)
 		return
 	}
 
-	buf := make([]byte, 4096)
-	n, _ := conn.Read(buf)
-	msg, _ := gossip.DecodeMessage(buf[:n])
-	fmt.Printf("Secure message from %s: %s\n", msg.From, msg.Type)
+	for {
+		buf := make([]byte, 4096)
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Printf("Connection closed: %v\n", err)
+			return
+		}
+
+		msg, err := gossip.DecodeMessage(buf[:n])
+		if err != nil {
+			continue
+		}
+
+		switch msg.Type {
+		case gossip.MsgPing:
+			n.handlePing(conn, msg)
+		case gossip.MsgPong:
+			fmt.Printf("Received pong from %s\n", msg.From)
+		default:
+			fmt.Printf("Received message from %s: %s\n", msg.From, msg.Type)
+		}
+	}
 }
