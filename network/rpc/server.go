@@ -1,20 +1,37 @@
-package p2p
+package rpc
 
 import (
-	"blockchain/network/gossip"
-	"blockchain/network/peer"
+	"encoding/json"
+	"fmt"
+	"net/http"
 )
 
-func StartNetwork() {
-	node := NewNode("node1", ":3000")
-	node.PeerMgr.AddPeer(peer.NewPeer("peer1", ":3001"))
-	node.Start()
+type RPCService struct{}
 
-	// Отправка тестового блока
-	msg := &gossip.Message{
-		Type: gossip.MsgBlock,
-		From: node.ID,
-		Data: []byte("block-123"),
-	}
-	gossip.Broadcast(node.PeerMgr.GetPeers(), msg)
+func (s *RPCService) HandleTx(req []byte, reply *string) error {
+	fmt.Printf("Received transaction: %s\n", req)
+	*reply = "OK"
+	return nil
+}
+
+func (s *RPCService) HandleBlock(req []byte, reply *string) error {
+	fmt.Printf("Received block: %s\n", req)
+	*reply = "OK"
+	return nil
+}
+
+func StartRPCServer(addr string) {
+	rpc := new(RPCService)
+	http.Handle("/tx", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var tx json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&tx); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		var reply string
+		rpc.HandleTx(tx, &reply)
+		w.Write([]byte(reply))
+	}))
+
+	http.ListenAndServe(addr, nil)
 }

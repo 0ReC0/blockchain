@@ -1,5 +1,7 @@
 package rpc
 
+// RPC-интерфейс
+
 import (
 	"encoding/json"
 	"fmt"

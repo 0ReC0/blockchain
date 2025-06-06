@@ -1,5 +1,7 @@
 package gossip
 
+// протокол рассылки
+
 import (
 	"bytes"
 	"encoding/gob"

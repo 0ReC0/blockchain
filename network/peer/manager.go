@@ -2,6 +2,8 @@ package peer
 
 import "fmt"
 
+// управление пирингом
+
 type PeerManager struct {
 	peers map[string]*Peer
 }

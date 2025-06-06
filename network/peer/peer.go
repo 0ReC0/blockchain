@@ -1,5 +1,7 @@
 package peer
 
+// модель узла
+
 type Peer struct {
 	ID   string
 	Addr string

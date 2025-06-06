@@ -1,5 +1,7 @@
 package gossip
 
+// типы сообщений
+
 type MessageType string
 
 const (
