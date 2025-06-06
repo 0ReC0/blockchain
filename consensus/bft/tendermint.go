@@ -5,6 +5,9 @@ package bft
 import (
 	"fmt"
 	"time"
+
+	"../../network/gossip"
+	"../pos"
 )
 
 type BFTNode struct {
@@ -30,14 +33,21 @@ func (n *BFTNode) Start() {
 	}
 }
 
-func (n *BFTNode) RunConsensusRound() {
-	validators := pos.ValidatorPool{
-		n.Validator,
-		{Address: "validator2", Stake: 1000},
-		{Address: "validator3", Stake: 1500},
+func (n *BFTNode) BroadcastMessage(msgType MessageType, data []byte) {
+	msg := &gossip.ConsensusMessage{
+		Type:   msgType,
+		Height: n.Height,
+		Round:  n.Round,
+		From:   n.Address,
+		Data:   data,
 	}
 
-	proposer := validators.Select()
+	gossip.BroadcastConsensusMessage(n.ValidatorPool, msg)
+}
+
+func (n *BFTNode) RunConsensusRound() {
+	// Выбор пропосера
+	proposer := n.ValidatorPool.Select()
 	round := NewRound(n.Height, n.Round, proposer.Address)
 
 	fmt.Printf("Starting round %d for height %d. Proposer: %s\n", n.Round, n.Height, proposer.Address)
@@ -46,29 +56,28 @@ func (n *BFTNode) RunConsensusRound() {
 	if proposer.Address == n.Address {
 		block := []byte("block-data")
 		round.ProposedBlock = block
-		round.Step = MsgPropose
-		fmt.Printf("Proposing block: %x\n", block)
+		n.BroadcastMessage(MsgPropose, block)
 	}
 
 	time.Sleep(1 * time.Second)
 
 	// 2. Prevote
 	round.Prevotes[n.Address] = []byte("prevote")
-	round.Step = MsgPrevote
+	n.BroadcastMessage(MsgPrevote, []byte("prevote"))
 	fmt.Printf("Prevote from %s\n", n.Address)
 
 	time.Sleep(1 * time.Second)
 
 	// 3. Precommit
 	round.Precommits[n.Address] = []byte("precommit")
-	round.Step = MsgPrecommit
+	n.BroadcastMessage(MsgPrecommit, []byte("precommit"))
 	fmt.Printf("Precommit from %s\n", n.Address)
 
 	time.Sleep(1 * time.Second)
 
 	// 4. Commit
 	if len(round.Precommits) >= 2 {
-		round.Step = MsgCommit
+		n.BroadcastMessage(MsgCommit, round.ProposedBlock)
 		fmt.Printf("Block committed: %x\n", round.ProposedBlock)
 	}
 }
