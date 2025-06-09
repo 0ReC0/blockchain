@@ -8,6 +8,9 @@ type FraudProof struct {
 }
 
 func VerifyFraudProof(proof *FraudProof) bool {
-	// Проверяем доказательство
-	return true // упрощённая проверка
+	// Пример: простая проверка (в реальности тут будет сложнее)
+	if proof.BlockHash == "" || proof.Validator == "" {
+		return false
+	}
+	return true
 }

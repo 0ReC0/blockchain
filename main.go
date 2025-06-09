@@ -16,6 +16,8 @@ import (
 	"./storage/sharding"
 	"./storage/txpool"
 
+	"./crypto/signature"
+
 	// Модули безопасности
 	"./security/double_spend"
 
@@ -33,6 +35,7 @@ import (
 	"./governance/reputation"
 	"./governance/upgrade"
 	"./governance/voting"
+	"./scalability/layer2/rollup"
 )
 
 func main() {
@@ -54,14 +57,19 @@ func main() {
 	bftManager := manager.NewConsensusManager(manager.ConsensusBFT)
 
 	// ============ Инициализация BFT-ноды ============
-	val := pos.NewValidator("validator1", 2000)
 	bftNode := bft.NewBFTNode(
 		"validator1",
-		val,
-		pos.NewValidatorPool([]*pos.Validator{val}),
+		pos.NewValidator("validator1", 2000),
+		pos.NewValidatorPool([]*pos.Validator{
+			pos.NewValidator("validator1", 2000),
+		}),
 		txPool,
 		chain,
+		&signature.ECDSASigner{}, // или другой signer
 	)
+
+	// Создаём Optimistic Rollup
+	optimisticRollup := rollup.NewOptimisticRollup(chain, bftNode)
 
 	// ============ Инициализация говернанса ============
 	upgradeMgr := upgrade.NewUpgradeManager("v1.0.0")
