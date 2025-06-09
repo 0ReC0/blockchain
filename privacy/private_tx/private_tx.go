@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"../../crypto/encryption"
+	"../../privacy/zkp"
 )
 
 type PrivateTransaction struct {
@@ -33,5 +34,11 @@ func NewPrivateTransaction(sender, recipient string, amount float64, encryptor e
 }
 
 func (p *PrivateTransaction) Decrypt(encryptor encryption.Encryptor, privateKey []byte) ([]byte, error) {
+	// Проверка ZKP перед расшифровкой
+	zkp := zkp.NewZKPSystem()
+	proof, err := zkp.ProveKnowledge([]byte("secret"))
+	if err != nil || !zkp.VerifyProof([]byte("public_key_stub"), proof) {
+		return nil, fmt.Errorf("ZKP verification failed")
+	}
 	return encryptor.Decrypt(p.Encrypted, privateKey)
 }

@@ -1,6 +1,11 @@
 package txpool
 
-import "sync"
+import (
+	"sync"
+	"time"
+
+	"../../security/double_spend"
+)
 
 type TransactionPool struct {
 	Transactions map[string]*Transaction
@@ -13,12 +18,23 @@ func NewTransactionPool() *TransactionPool {
 	}
 }
 
+var doubleSpendGuard *double_spend.DoubleSpendGuard
+
+func init() {
+	doubleSpendGuard = double_spend.NewDoubleSpendGuard()
+	doubleSpendGuard.StartCleanup(5 * time.Minute)
+}
+
 func (p *TransactionPool) AddTransaction(tx *Transaction) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	if !doubleSpendGuard.CheckAndMark(tx.ID) {
+		// Транзакция является двойной тратой — не добавляем
+		return
+	}
 	p.Transactions[tx.ID] = tx
 }
-
 func (p *TransactionPool) GetTransactions(limit int) []*Transaction {
 	p.mu.Lock()
 	defer p.mu.Unlock()

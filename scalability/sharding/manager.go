@@ -3,6 +3,8 @@ package sharding
 import (
 	"fmt"
 	"sync"
+
+	"../../integration/crosschain"
 )
 
 type ShardManager struct {
@@ -21,6 +23,8 @@ func (m *ShardManager) CreateShard(id string) {
 	defer m.mu.Unlock()
 	if _, exists := m.Shards[id]; !exists {
 		m.Shards[id] = NewShard(id)
+		// Регистрация шарда в межцепочковом модуле
+		crosschain.RegisterShard(id)
 	}
 }
 

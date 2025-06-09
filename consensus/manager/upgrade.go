@@ -31,6 +31,8 @@ func (u *UpgradeManager) SubmitUpgradeProposal(title, desc, author string) {
 func (u *UpgradeManager) ApproveUpgrade(proposalID string) {
 	if u.Governance.TallyVotes(proposalID) {
 		fmt.Printf("Upgrade approved: %s\n", proposalID)
-		// Здесь можно вызвать обновление протокола
+		// Пример обновления консенсуса
+		cs := NewConsensusSwitcher(ConsensusBFT)
+		cs.StartConsensus()
 	}
 }

@@ -5,6 +5,8 @@ package pos
 import (
 	"math/rand"
 	"time"
+
+	"../../governance/reputation"
 )
 
 type ValidatorPool []*Validator
@@ -14,11 +16,18 @@ func (p ValidatorPool) Select() *Validator {
 		return nil
 	}
 
-	// Простой рандомизированный выбор по ставке
+	// Использование репутации для выбора валидатора
+	repModule := reputation.NewReputationModule()
+
+	// Обновляем репутацию перед выбором
+	for _, v := range p {
+		repModule.UpdateReputation(v.Address, 1.0)
+	}
+
 	rand.Seed(time.Now().UnixNano())
 	total := 0.0
 	for _, v := range p {
-		total += v.Weight()
+		total += v.Weight() * repModule.CalculateScore(v.Address, true)
 	}
 
 	r := rand.Float64() * total

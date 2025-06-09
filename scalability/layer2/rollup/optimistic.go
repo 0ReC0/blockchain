@@ -2,6 +2,8 @@ package rollup
 
 import (
 	"../../../consensus/bft"
+	"../../../network/gossip"
+	"../../../network/peer"
 	"../../../storage/blockchain"
 )
 
@@ -18,8 +20,24 @@ func NewOptimisticRollup(chain *blockchain.Blockchain, bftNode *bft.BFTNode) *Op
 }
 
 func (r *OptimisticRollup) SubmitBatch(transactions []string) error {
-	// Отправляем батч транзакций
-	if err := r.BFT.BroadcastMessage("batch", []byte(transactions)); err != nil {
+	// Преобразуем transactions в формат, понятный gossip
+	msg := &gossip.Message{
+		Type: gossip.MsgTx,
+		From: r.BFT.Address,
+		Data: []byte(transactions[0]), // упрощённый пример
+	}
+
+	// Преобразуем ValidatorPool в []*peer.Peer
+	var peers []*peer.Peer
+	for _, validator := range r.BFT.ValidatorPool {
+		peers = append(peers, &peer.Peer{
+			ID:   validator.Address,
+			Addr: "unknown", // можно улучшить, получая из реестра пиров
+		})
+	}
+
+	// Используем существующую функцию
+	if err := gossip.Broadcast(peers, msg); err != nil {
 		return err
 	}
 	return nil
