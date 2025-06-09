@@ -16,6 +16,7 @@ type Block struct {
 	Transactions []txpool.Transaction
 	Validator    string
 	Nonce        string
+	Signature    []byte
 }
 
 func NewBlock(index int64, prevHash string, transactions []txpool.Transaction, validator string) *Block {

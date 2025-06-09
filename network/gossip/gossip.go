@@ -4,9 +4,14 @@ package gossip
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"net"
+
+	"../p2p"
+	"../peer"
 )
 
 func (m *Message) Encode() ([]byte, error) {
@@ -24,7 +29,7 @@ func DecodeMessage(data []byte) (*Message, error) {
 	return &msg, err
 }
 
-func Broadcast(peers []*Peer, msg *Message) error {
+func Broadcast(peers []*peer.Peer, msg *Message) error {
 	for _, peer := range peers {
 		conn, err := net.Dial("tcp", peer.Addr)
 		if err != nil {
@@ -33,6 +38,29 @@ func Broadcast(peers []*Peer, msg *Message) error {
 		}
 		defer conn.Close()
 		encoded, _ := msg.Encode()
+		_, err = conn.Write(encoded)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// BroadcastSignedConsensusMessage — рассылает подписанные сообщения всем пирам
+func BroadcastSignedConsensusMessage(peers []*peer.Peer, msg *SignedConsensusMessage) error {
+	for _, peer := range peers {
+		conn, err := tls.Dial("tcp", peer.Addr, p2p.GenerateTLSConfig())
+		if err != nil {
+			fmt.Printf("Can't connect to peer %s: %v\n", peer.ID, err)
+			continue
+		}
+		defer conn.Close()
+
+		encoded, err := json.Marshal(msg)
+		if err != nil {
+			return err
+		}
+
 		_, err = conn.Write(encoded)
 		if err != nil {
 			return err

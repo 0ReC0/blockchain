@@ -29,6 +29,20 @@ func DecodeConsensusMessage(data []byte) (*ConsensusMessage, error) {
 	return &msg, nil
 }
 
+func HandleSignedMessage(data []byte) (*ConsensusMessage, error) {
+	msg, err := DecodeSignedMessage(data)
+	if err != nil {
+		return nil, err
+	}
+
+	// Проверяем подпись
+	if !signature.VerifySignature(msg.From, msg.Data, msg.Signature) {
+		return nil, fmt.Errorf("invalid signature from %s", msg.From)
+	}
+
+	return msg, nil
+}
+
 func BroadcastConsensusMessage(peers []*peer.Peer, msg *ConsensusMessage) error {
 	for _, peer := range peers {
 		conn, err := tls.Dial("tcp", peer.Addr, crypto.GenerateTLSConfig())
