@@ -3,9 +3,7 @@ package execution
 import (
 	"fmt"
 
-	"../token/erc1155"
 	"../token/erc20"
-	"../token/erc721"
 )
 
 type Contract interface {
@@ -14,15 +12,11 @@ type Contract interface {
 
 type ContractHandler struct {
 	ERC20Contracts   map[string]*erc20.Token
-	ERC721Contracts  map[string]*erc721.NFT
-	ERC1155Contracts map[string]*erc1155.MultiToken
 }
 
 func NewContractHandler() *ContractHandler {
 	return &ContractHandler{
 		ERC20Contracts:   make(map[string]*erc20.Token),
-		ERC721Contracts:  make(map[string]*erc721.NFT),
-		ERC1155Contracts: make(map[string]*erc1155.MultiToken),
 	}
 }
 
