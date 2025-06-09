@@ -16,17 +16,18 @@ func NewShardManager() *ShardManager {
 	}
 }
 
+func (m *ShardManager) GetShardForAddress(addr string) *Shard {
+	// Простой хешированный выбор шарда
+	shardID := fmt.Sprintf("%d", len(addr)%3)
+	return m.Shards[shardID]
+}
+
 func (m *ShardManager) CreateShard(id string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, exists := m.Shards[id]; !exists {
 		m.Shards[id] = NewShard(id)
-		fmt.Printf("Shard %s created\n", id)
+		// Регистрация шарда в межцепочковом модуле
+		crosschain.RegisterShard(id)
 	}
-}
-
-func (m *ShardManager) GetShardForAddress(addr string) *Shard {
-	// Простой хешированный выбор шарда
-	shardID := fmt.Sprintf("%d", len(addr)%3)
-	return m.Shards[shardID]
 }
