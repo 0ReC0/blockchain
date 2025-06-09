@@ -8,12 +8,15 @@ import (
 )
 
 type Transaction struct {
-	ID        string
-	From      string
-	To        string
-	Amount    float64
-	Timestamp int64
-	Signature string
+	ID          string
+	From        string
+	To          string
+	Amount      float64
+	Timestamp   int64
+	Signature   string
+	IsPrivate   bool
+	Encrypted   []byte
+	PublicKey   []byte
 }
 
 func NewTransaction(from, to string, amount float64) *Transaction {
