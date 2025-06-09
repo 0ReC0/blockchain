@@ -158,4 +158,35 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Println("Transfer result:", result)
+
+	// Инициализация блокчейна
+	chainA := blockchain.NewBlockchain()
+	chainB := blockchain.NewBlockchain()
+
+	// Инициализация пула транзакций
+	txPool := txpool.NewTransactionPool()
+
+	// REST API
+	apiServer := api.NewAPIServer(chainA, txPool)
+	go apiServer.Start(":8080")
+
+	// Cross-Chain
+	bridge := crosschain.NewChainBridge(chainA, chainB)
+	orcl := crosschain.NewCrossChainOracle()
+	orcl.Bridges = append(orcl.Bridges, bridge)
+
+	// Запускаем оракул
+	go orcl.MonitorChains()
+
+	// Банковский шлюз
+	bank := bank.NewBankGateway("api-key", "https://bank-api.com")
+	adapter := bank.NewBankAdapter(bank)
+
+	// Депозит
+	tx := txpool.NewTransaction("bank-reserve", "user1", 1000)
+	bankTxID, _ := adapter.HandleDeposit(tx)
+	fmt.Println("Deposit processed:", bankTxID)
+
+	// Ожидаем
+	select {}
 }
