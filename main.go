@@ -96,4 +96,28 @@ func main() {
 			fmt.Printf("Block %d: %s\n", block.Index, block.Hash)
 		}
 	}
+
+	// Инициализация шифрования
+	aesEncryptor := &encryption.AESEncryptor{}
+	key := private_tx.GenerateKey("my-secret-password")
+
+	// Создание приватной транзакции
+	tx, _ := private_tx.NewPrivateTransaction("A", "B", 10, aesEncryptor, key)
+
+	// Расшифровка
+	decrypted, _ := tx.Decrypt(aesEncryptor, key)
+	fmt.Println("Decrypted:", string(decrypted))
+
+	// Пул приватных транзакций
+	pool := shielded.NewShieldedPool()
+	pool.AddTransaction(tx)
+
+	// Блок с приватными транзакциями
+	baseBlock := &blockchain.Block{
+		Index:    1,
+		PrevHash: "0",
+		Hash:     "1",
+	}
+	shieldedBlock := shielded.NewShieldedBlock(baseBlock, pool.GetTransactions(1))
+	fmt.Printf("Shielded block: %+v\n", shieldedBlock)
 }
