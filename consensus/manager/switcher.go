@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"time"
 )
 
 type ConsensusType string
@@ -29,5 +30,12 @@ func (cs *ConsensusSwitcher) StartConsensus() {
 		// Запуск BFT
 	default:
 		fmt.Println("Unknown consensus type")
+	}
+}
+
+func (cs *ConsensusSwitcher) Run() {
+	ticker := time.NewTicker(10 * time.Second)
+	for range ticker.C {
+		cs.StartConsensus()
 	}
 }

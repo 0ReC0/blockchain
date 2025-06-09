@@ -53,8 +53,19 @@ func main() {
 	go apiServer.Start(":8081")
 
 	// ============ Инициализация консенсуса ============
-	posManager := manager.NewConsensusManager(manager.ConsensusPoS)
-	bftManager := manager.NewConsensusManager(manager.ConsensusBFT)
+	// Используем только ConsensusSwitcher, без ConsensusManager
+	switcher := manager.NewConsensusSwitcher(manager.ConsensusPoS)
+
+	// Запуск консенсуса по таймеру
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		for {
+			select {
+			case <-ticker.C:
+				switcher.StartConsensus()
+			}
+		}
+	}()
 
 	// ============ Инициализация BFT-ноды ============
 	bftNode := bft.NewBFTNode(
