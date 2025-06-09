@@ -112,8 +112,6 @@ func main() {
 	reputation := reputation.NewReputationModule()
 
 	// ============ Запуск всех компонентов ============
-	go posManager.Run()
-	go bftManager.Run()
 	go bftNode.Start()
 
 	fmt.Println("Blockchain system started. Waiting for connections...")
