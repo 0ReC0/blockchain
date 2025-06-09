@@ -25,3 +25,8 @@ func (g *DoubleSpendGuard) CheckAndMark(txID string) bool {
 	g.seenTransactions[txID] = true
 	return true // транзакция уникальна
 }
+
+// InitSecurity — инициализирует защиту от двойных трат
+func InitSecurity() *DoubleSpendGuard {
+	return NewDoubleSpendGuard()
+}

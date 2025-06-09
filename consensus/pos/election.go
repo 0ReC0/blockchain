@@ -5,7 +5,8 @@ package pos
 import (
 	"math/rand"
 	"time"
-
+)
+import (
 	"../../governance/reputation"
 )
 
@@ -38,4 +39,9 @@ func (p ValidatorPool) Select() *Validator {
 		}
 	}
 	return p[0]
+}
+
+func NewValidatorPool(validators []*Validator) *ValidatorPool {
+	vp := ValidatorPool(validators)
+	return &vp
 }
