@@ -217,4 +217,45 @@ func main() {
 	upgrade.ApproveUpgrade()
 	upgrade.ApplyUpgrade()
 	fmt.Println("Current version:", upgrade.CurrentVersion)
+
+	// 1. Защита от двойных расходов
+	doubleSpendGuard := double_spend.NewDoubleSpendGuard()
+	doubleSpendGuard.StartCleanup(5 * time.Minute)
+
+	txID := "tx-123"
+	if doubleSpendGuard.CheckAndMark(txID) {
+		fmt.Println("✅ Transaction is valid")
+	} else {
+		fmt.Println("❌ Double spend detected!")
+	}
+
+	// 2. Защита от Sybil-атак
+	validators := []string{"validator1", "validator2"}
+	sybilGuard := sybil.NewSybilGuard(validators)
+
+	nodeID := "random-node-123"
+	if sybilGuard.RegisterNode(nodeID) {
+		fmt.Println("✅ Node registered")
+	} else {
+		fmt.Println("❌ Sybil node detected")
+	}
+
+	// 3. Защита от атак 51%
+	validatorsPower := map[string]int64{
+		"validator1": 100,
+		"validator2": 100,
+		"validator3": 100,
+	}
+	attackGuard := fiftyone.NewFiftyOnePercentGuard(validatorsPower)
+	attackGuard.Monitor(10 * time.Second)
+
+	// 4. Аудит
+	auditor := audit.NewSecurityAuditor()
+	auditor.RecordEvent(audit.SecurityEvent{
+		Timestamp: time.Now(),
+		Type:      "Double Spend Attempt",
+		Message:   "Detected duplicate transaction",
+		NodeID:    "node-123",
+		Severity:  "high",
+	})
 }
