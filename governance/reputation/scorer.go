@@ -1,6 +1,6 @@
 package reputation
 
-func (r *ReputationModule) CalculateScore(node string, success bool) float64 {
+func (r *ReputationSystem) CalculateScore(node string, success bool) float64 {
 	rep, exists := r.NodeReputation[node]
 	if !exists {
 		return 100

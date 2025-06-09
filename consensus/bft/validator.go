@@ -1,19 +1,19 @@
 package bft
 
 import (
-	"../governance"
+	"../../governance/reputation"
 	"../pos"
 )
 
 type BFTValidator struct {
 	*pos.Validator
-	Reputation *governance.ReputationSystem
+	Reputation *reputation.ReputationSystem
 }
 
 func NewBFTValidator(val *pos.Validator) *BFTValidator {
 	return &BFTValidator{
 		Validator:  val,
-		Reputation: governance.NewReputationSystem(),
+		Reputation: reputation.NewReputationSystem(),
 	}
 }
 

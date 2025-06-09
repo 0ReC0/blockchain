@@ -6,17 +6,17 @@ type Reputation struct {
 	History []float64
 }
 
-type ReputationModule struct {
+type ReputationSystem struct {
 	NodeReputation map[string]*Reputation
 }
 
-func NewReputationModule() *ReputationModule {
-	return &ReputationModule{
+func NewReputationSystem() *ReputationSystem {
+	return &ReputationSystem{
 		NodeReputation: make(map[string]*Reputation),
 	}
 }
 
-func (r *ReputationModule) UpdateReputation(node string, score float64) {
+func (r *ReputationSystem) UpdateReputation(node string, score float64) {
 	rep, exists := r.NodeReputation[node]
 	if !exists {
 		rep = &Reputation{
