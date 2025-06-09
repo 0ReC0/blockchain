@@ -1,9 +1,17 @@
 package voting
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 )
+
+func GenerateID() string {
+	data := []byte(time.Now().String() + "salt")
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
 
 type VotingModule struct {
 	Proposals map[string]*Proposal
