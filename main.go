@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	bft "./consensus/bft"
@@ -144,4 +145,17 @@ func main() {
 		shard.AddTransaction(tx)
 	}
 	shard.FinalizeBlock()
+
+	handler := execution.NewContractHandler()
+
+	// Деплоим токен
+	tokenAddr := handler.DeployERC20("MyToken", "MTK", 18, 1_000_000)
+	fmt.Println("Token deployed at:", tokenAddr)
+
+	// Вызываем метод
+	result, err := handler.CallERC20(tokenAddr, "transfer", "0x123", "0x456", uint64(100))
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Transfer result:", result)
 }
