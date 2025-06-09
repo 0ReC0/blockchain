@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 
+	"../../consensus/bft"
 	"../gossip"
 	"../peer"
 )
@@ -54,9 +55,11 @@ func (n *Node) handleSecureConnection(conn *tls.Conn) {
 			return
 		}
 
-		msg, err := gossip.DecodeMessage(buf[:n])
+		msg, err := gossip.DecodeConsensusMessage(buf[:n])
 		if err != nil {
-			continue
+			// Обработка сообщений консенсуса
+			go n.handleConsensusMessage(msg)
+			return
 		}
 
 		switch msg.Type {
@@ -68,4 +71,9 @@ func (n *Node) handleSecureConnection(conn *tls.Conn) {
 			fmt.Printf("Received message from %s: %s\n", msg.From, msg.Type)
 		}
 	}
+}
+func (n *Node) handleConsensusMessage(msg *gossip.ConsensusMessage) {
+	// Передача сообщений консенсуса в модуль BFT
+	bftHandler := bft.NewBFTMessageHandler(n.PeerMgr)
+	bftHandler.ProcessMessage(msg)
 }

@@ -30,17 +30,21 @@ func NewShard(id string) *Shard {
 func (s *Shard) AddTransaction(tx *txpool.Transaction) {
 	s.TxPool.AddTransaction(tx)
 }
-
 func (s *Shard) FinalizeBlock() {
-	// Создаем новый блок
+	transactions := s.TxPool.GetTransactions(100)
+	if len(transactions) == 0 {
+		return
+	}
+
 	newBlock := &blockchain.Block{
 		Index:        s.Chain.Blocks[len(s.Chain.Blocks)-1].Index + 1,
 		PrevHash:     s.Chain.Blocks[len(s.Chain.Blocks)-1].Hash,
 		Timestamp:    time.Now().Unix(),
-		Transactions: s.TxPool.GetTransactions(100),
+		Transactions: transactions,
+		Validator:    "validator1", // или передавать извне
 	}
-
 	newBlock.Hash = newBlock.CalculateHash()
 	s.Chain.Blocks = append(s.Chain.Blocks, newBlock)
+
 	s.TxPool.Flush()
 }

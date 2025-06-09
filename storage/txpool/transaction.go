@@ -1,6 +1,11 @@
 package txpool
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+
+	"../../crypto/signature"
+)
 
 type Transaction struct {
 	ID        string
@@ -19,4 +24,17 @@ func NewTransaction(from, to string, amount float64) *Transaction {
 		Amount:    amount,
 		Timestamp: time.Now().Unix(),
 	}
+}
+
+func (t *Transaction) Serialize() []byte {
+	data, _ := json.Marshal(t)
+	return data
+}
+
+func (t *Transaction) Verify() bool {
+	pubKey, err := signature.LoadPublicKey(t.From)
+	if err != nil {
+		return false
+	}
+	return signature.Verify(pubKey, t.Serialize(), []byte(t.Signature))
 }

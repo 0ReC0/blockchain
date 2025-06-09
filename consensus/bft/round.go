@@ -2,6 +2,7 @@ package bft
 
 // раунд консенсуса
 
+// Round — структура раунда консенсуса
 type Round struct {
 	Height        int64
 	Round         int64

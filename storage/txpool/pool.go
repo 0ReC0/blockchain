@@ -38,3 +38,9 @@ func (p *TransactionPool) RemoveTransaction(id string) {
 	defer p.mu.Unlock()
 	delete(p.Transactions, id)
 }
+
+func (p *TransactionPool) Flush() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.Transactions = make(map[string]*Transaction)
+}

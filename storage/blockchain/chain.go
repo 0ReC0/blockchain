@@ -13,10 +13,10 @@ func NewBlockchain() *Blockchain {
 }
 
 func NewGenesisBlock() *Block {
-	return NewBlock(0, "0", []txpool.Transaction{}, "genesis")
+	return NewBlock(0, "0", []*txpool.Transaction{}, "genesis")
 }
 
-func (bc *Blockchain) AddBlock(transactions []txpool.Transaction, validator string) {
+func (bc *Blockchain) AddBlock(transactions []*txpool.Transaction, validator string) {
 	prevBlock := bc.Blocks[len(bc.Blocks)-1]
 	newBlock := NewBlock(prevBlock.Index+1, prevBlock.Hash, transactions, validator)
 	bc.Blocks = append(bc.Blocks, newBlock)

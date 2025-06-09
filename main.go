@@ -1,103 +1,69 @@
+// main.go
 package main
 
 import (
 	"fmt"
-	"log"
 	"time"
 
-	bft "./consensus/bft"
-	manager "./consensus/manager"
-	pos "./consensus/pos"
-	p2p "./network/p2p"
-	rpc "./network/rpc"
+	// Основные модули
+	"./consensus/bft"
+	"./consensus/manager"
+	"./consensus/pos"
+	"./crypto/encryption"
+	"./network/p2p"
+	"./network/rpc"
+
+	// Уровень хранения
+	"./storage/blockchain"
+	"./storage/sharding"
+	"./storage/txpool"
+
+	// Модули безопасности
+	"./security/double_spend"
+	"./security/fiftyone"
+	"./security/sybil"
+
+	// Модуль приватности
+	"./privacy/private_tx"
+	"./privacy/shielded"
+
+	// Модули масштабируемости
+	"./scalability/parallel"
+
+	// Смарт-контракты
+	"./contracts/execution"
+
+	// Интеграция
+	"./integration/api"
+	"./integration/bank"
+	"./integration/crosschain"
+
+	// Говернанс
+	"./governance/reputation"
+	"./governance/upgrade"
+	"./governance/voting"
 )
 
-func main() {
-	go p2p.StartNetwork()
-	rpc.StartRPCServer(":8080")
+func initSecurityModules() {
+	// Инициализация защиты от двойных расходов
+	doubleSpendGuard := double_spend.NewDoubleSpendGuard()
+	doubleSpendGuard.StartCleanup(5 * time.Minute)
 
-	// Запуск PoS-консенсуса
-	posManager := manager.NewConsensusManager(manager.ConsensusPoS)
-	go posManager.Run()
+	// Инициализация защиты от Sybil-атак
+	validators := []string{"validator1", "validator2"}
+	sybilGuard := sybil.NewSybilGuard(validators)
 
-	// Запуск BFT-консенсуса
-	bftManager := manager.NewConsensusManager(manager.ConsensusBFT)
-	go bftManager.Run()
-
-	// Запуск BFT-ноды
-	val := pos.NewValidator("validator1", 2000)
-	bftNode := bft.NewBFTNode("validator1", val)
-	go bftNode.Start()
-
-	// Создаем говернанс
-	upgradeMgr := manager.NewUpgradeManager()
-	upgradeMgr.SubmitUpgradeProposal("Update consensus protocol", "Switch to faster BFT", "validator1")
-
-	// Голосование
-	upgradeMgr.Governance.VoteOnProposal("upgrade-1", "validator1", "yes")
-	upgradeMgr.Governance.VoteOnProposal("upgrade-1", "validator2", "yes")
-	upgradeMgr.ApproveUpgrade("upgrade-1")
-
-	// Создаем блокчейн
-	chain := blockchain.NewBlockchain()
-
-	// Добавляем транзакции
-	txPool := txpool.NewTransactionPool()
-	tx1 := txpool.NewTransaction("A", "B", 10)
-	tx2 := txpool.NewTransaction("B", "C", 5)
-	txPool.AddTransaction(tx1)
-	txPool.AddTransaction(tx2)
-
-	// Создаем шарды
-	shardMgr := sharding.NewShardManager()
-	shardMgr.CreateShard("0")
-	shardMgr.CreateShard("1")
-	shardMgr.CreateShard("2")
-
-	// Добавляем блок
-	validator := "validator1"
-	transactions := txPool.GetTransactions(2)
-	block := blockchain.NewBlock(1, chain.Blocks[0].Hash, transactions, validator)
-	chain.AddBlock(transactions, validator)
-
-	// Выводим цепочку
-	for _, block := range chain.Blocks {
-		fmt.Printf("Block %d: %s\n", block.Index, block.Hash)
+	// Инициализация защиты от атак 51%
+	validatorsPower := map[string]int64{
+		"validator1": 100,
+		"validator2": 100,
+		"validator3": 100,
 	}
+	attackGuard := fiftyone.NewFiftyOnePercentGuard(validatorsPower)
+	attackGuard.Monitor(10 * time.Second)
+}
 
-	select {}
-
-	// Инициализация блокчейна
-	chain := blockchain.NewBlockchain()
-
-	// Инициализация пула транзакций
-	txPool := txpool.NewTransactionPool()
-	tx1 := txpool.NewTransaction("A", "B", 10)
-	tx2 := txpool.NewTransaction("B", "C", 5)
-	txPool.AddTransaction(tx1)
-	txPool.AddTransaction(tx2)
-
-	// Инициализация BFT-ноды
-	val := pos.NewValidator("validator1", 2000)
-	bftNode := bft.NewBFTNode("validator1", val)
-
-	// Запуск консенсуса
-	go func() {
-		for {
-			bftNode.RunConsensusRound(txPool, chain)
-			bftNode.Height++
-			time.Sleep(10 * time.Second)
-		}
-	}()
-
-	// Выводим цепочку
-	for {
-		time.Sleep(30 * time.Second)
-		for _, block := range chain.Blocks {
-			fmt.Printf("Block %d: %s\n", block.Index, block.Hash)
-		}
-	}
-
+func initPrivacyModules() {
 	// Инициализация шифрования
 	aesEncryptor := &encryption.AESEncryptor{}
 	key := private_tx.GenerateKey("my-secret-password")
@@ -121,12 +87,37 @@ func main() {
 	}
 	shieldedBlock := shielded.NewShieldedBlock(baseBlock, pool.GetTransactions(1))
 	fmt.Printf("Shielded block: %+v\n", shieldedBlock)
+}
 
-	// Инициализация шардов
-	shardMgr := sharding.NewShardManager()
-	shardMgr.CreateShard("0")
-	shardMgr.CreateShard("1")
-	shardMgr.CreateShard("2")
+func main() {
+	// Инициализация сетевого уровня
+	go p2p.StartNetwork()
+	go rpc.StartRPCServer(":8080")
+
+	// Инициализация консенсуса
+	posManager := manager.NewConsensusManager(manager.ConsensusPoS)
+	bftManager := manager.NewConsensusManager(manager.ConsensusBFT)
+
+	// Инициализация BFT-ноды
+	val := pos.NewValidator("validator1", 2000)
+	bftNode := bft.NewBFTNode(
+		"validator1",
+		val,
+		pos.NewValidatorPool([]*pos.Validator{val}),
+		txpool.NewTransactionPool(),
+		blockchain.NewBlockchain(),
+	)
+
+	// Инициализация говернанса
+	upgradeMgr := manager.NewUpgradeManager()
+	upgradeMgr.SubmitUpgradeProposal(
+		"Update consensus protocol",
+		"Switch to faster BFT",
+		"validator1",
+	)
+
+	// Инициализация блокчейна
+	chain := blockchain.NewBlockchain()
 
 	// Инициализация пула транзакций
 	txPool := txpool.NewTransactionPool()
@@ -135,127 +126,75 @@ func main() {
 	txPool.AddTransaction(tx1)
 	txPool.AddTransaction(tx2)
 
-	// Параллельная обработка
-	executor := parallel.NewParallelExecutor(4)
-	executor.ExecuteTransactions(txPool.GetTransactions(100), chain)
+	// Инициализация шардов
+	shardMgr := sharding.NewShardManager()
+	shardMgr.CreateShard("0")
+	shardMgr.CreateShard("1")
+	shardMgr.CreateShard("2")
 
-	// Шардинг
-	shard := shardMgr.GetShardForAddress("A")
-	for _, tx := range txPool.GetTransactions(100) {
-		shard.AddTransaction(tx)
-	}
-	shard.FinalizeBlock()
-
-	handler := execution.NewContractHandler()
-
-	// Деплоим токен
-	tokenAddr := handler.DeployERC20("MyToken", "MTK", 18, 1_000_000)
-	fmt.Println("Token deployed at:", tokenAddr)
-
-	// Вызываем метод
-	result, err := handler.CallERC20(tokenAddr, "transfer", "0x123", "0x456", uint64(100))
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Transfer result:", result)
-
-	// Инициализация блокчейна
-	chainA := blockchain.NewBlockchain()
-	chainB := blockchain.NewBlockchain()
-
-	// Инициализация пула транзакций
-	txPool := txpool.NewTransactionPool()
-
-	// REST API
-	apiServer := api.NewAPIServer(chainA, txPool)
-	go apiServer.Start(":8080")
-
-	// Cross-Chain
-	bridge := crosschain.NewChainBridge(chainA, chainB)
-	orcl := crosschain.NewCrossChainOracle()
-	orcl.Bridges = append(orcl.Bridges, bridge)
-
-	// Запускаем оракул
-	go orcl.MonitorChains()
-
-	// Банковский шлюз
-	bank := bank.NewBankGateway("api-key", "https://bank-api.com")
-	adapter := bank.NewBankAdapter(bank)
-
-	// Депозит
-	tx := txpool.NewTransaction("bank-reserve", "user1", 1000)
-	bankTxID, _ := adapter.HandleDeposit(tx)
-	fmt.Println("Deposit processed:", bankTxID)
-
-	// Ожидаем
-	select {}
-
-	// Инициализация говернанса
-	voting := voting.NewVotingModule()
-	reputation := reputation.NewReputationModule()
-	upgrade := upgrade.NewUpgradeManager("v1.0.0")
-
-	// Создаем предложение
-	proposalID := voting.CreateProposal("Upgrade Protocol", "Upgrade to v2.0.0", "validator1", 3, 0.67)
-
-	// Узлы голосуют
-	voting.Vote(proposalID, "validator1", true)
-	voting.Vote(proposalID, "validator2", true)
-	voting.Vote(proposalID, "validator3", false)
-
-	// Проверяем одобрение
-	approved, _ := voting.IsApproved(proposalID)
-	fmt.Println("Proposal approved:", approved)
-
-	// Обновляем репутацию
-	reputation.UpdateReputation("validator1", 105)
-	rep, _ := reputation.NodeReputation["validator1"]
-	fmt.Println("Validator1 reputation:", rep.Score)
-
-	// Планируем обновление
-	upgrade.ProposeUpgrade("v2.0.0", "Major protocol upgrade", time.Now().Add(24*time.Hour))
-	upgrade.ApproveUpgrade()
-	upgrade.ApplyUpgrade()
-	fmt.Println("Current version:", upgrade.CurrentVersion)
-
-	// 1. Защита от двойных расходов
+	// Инициализация безопасности
 	doubleSpendGuard := double_spend.NewDoubleSpendGuard()
 	doubleSpendGuard.StartCleanup(5 * time.Minute)
 
-	txID := "tx-123"
-	if doubleSpendGuard.CheckAndMark(txID) {
-		fmt.Println("✅ Transaction is valid")
-	} else {
-		fmt.Println("❌ Double spend detected!")
-	}
-
-	// 2. Защита от Sybil-атак
 	validators := []string{"validator1", "validator2"}
 	sybilGuard := sybil.NewSybilGuard(validators)
 
-	nodeID := "random-node-123"
-	if sybilGuard.RegisterNode(nodeID) {
-		fmt.Println("✅ Node registered")
-	} else {
-		fmt.Println("❌ Sybil node detected")
-	}
-
-	// 3. Защита от атак 51%
 	validatorsPower := map[string]int64{
 		"validator1": 100,
 		"validator2": 100,
 		"validator3": 100,
 	}
 	attackGuard := fiftyone.NewFiftyOnePercentGuard(validatorsPower)
-	attackGuard.Monitor(10 * time.Second)
+	go attackGuard.Monitor(10 * time.Second)
 
-	// 4. Аудит
-	auditor := audit.NewSecurityAuditor()
-	auditor.RecordEvent(audit.SecurityEvent{
-		Timestamp: time.Now(),
-		Type:      "Double Spend Attempt",
-		Message:   "Detected duplicate transaction",
-		NodeID:    "node-123",
-		Severity:  "high",
-	})
+	// Инициализация приватности
+	aesEncryptor := &encryption.AESEncryptor{}
+	key := private_tx.GenerateKey("my-secret-password")
+
+	tx, _ := private_tx.NewPrivateTransaction("A", "B", 10, aesEncryptor, key)
+	decrypted, _ := tx.Decrypt(aesEncryptor, key)
+	fmt.Println("Decrypted:", string(decrypted))
+
+	pool := shielded.NewShieldedPool()
+	pool.AddTransaction(tx)
+
+	// Инициализация масштабируемости
+	executor := parallel.NewParallelExecutor(4)
+	executor.ExecuteTransactions(txPool.GetTransactions(100), chain)
+
+	// Инициализация смарт-контрактов
+	handler := execution.NewContractHandler()
+	tokenAddr := handler.DeployERC20("MyToken", "MTK", 18, 1_000_000)
+	fmt.Println("Token deployed at:", tokenAddr)
+
+	// Инициализация API
+	apiServer := api.NewAPIServer(chain, txPool)
+	go apiServer.Start(":8081")
+
+	// Инициализация межблокчейновой интеграции
+	chainA := blockchain.NewBlockchain()
+	chainB := blockchain.NewBlockchain()
+	bridge := crosschain.NewChainBridge(chainA, chainB)
+	orcl := crosschain.NewCrossChainOracle()
+	orcl.Bridges = append(orcl.Bridges, bridge)
+	go orcl.MonitorChains()
+
+	// Инициализация банковского шлюза
+	bank := bank.NewBankGateway("api-key", "https://bank-api.com")
+	adapter := bank.NewBankAdapter(bank)
+
+	// Инициализация голосования
+	voting := voting.NewVotingModule()
+	reputation := reputation.NewReputationModule()
+	upgrade := upgrade.NewUpgradeManager("v1.0.0")
+
+	// Запуск всех компонентов
+	go posManager.Run()
+	go bftManager.Run()
+	go bftNode.Start()
+
+	fmt.Println("Blockchain system started. Waiting for connections...")
+
+	// Бесконечный цикл для поддержания работы сервера
+	select {}
 }
