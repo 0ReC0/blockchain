@@ -189,4 +189,32 @@ func main() {
 
 	// Ожидаем
 	select {}
+
+	// Инициализация говернанса
+	voting := voting.NewVotingModule()
+	reputation := reputation.NewReputationModule()
+	upgrade := upgrade.NewUpgradeManager("v1.0.0")
+
+	// Создаем предложение
+	proposalID := voting.CreateProposal("Upgrade Protocol", "Upgrade to v2.0.0", "validator1", 3, 0.67)
+
+	// Узлы голосуют
+	voting.Vote(proposalID, "validator1", true)
+	voting.Vote(proposalID, "validator2", true)
+	voting.Vote(proposalID, "validator3", false)
+
+	// Проверяем одобрение
+	approved, _ := voting.IsApproved(proposalID)
+	fmt.Println("Proposal approved:", approved)
+
+	// Обновляем репутацию
+	reputation.UpdateReputation("validator1", 105)
+	rep, _ := reputation.NodeReputation["validator1"]
+	fmt.Println("Validator1 reputation:", rep.Score)
+
+	// Планируем обновление
+	upgrade.ProposeUpgrade("v2.0.0", "Major protocol upgrade", time.Now().Add(24*time.Hour))
+	upgrade.ApproveUpgrade()
+	upgrade.ApplyUpgrade()
+	fmt.Println("Current version:", upgrade.CurrentVersion)
 }
