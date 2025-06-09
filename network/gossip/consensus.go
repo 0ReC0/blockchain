@@ -4,6 +4,9 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+
+	"../crypto"
+	"../peer"
 )
 
 type ConsensusMessage struct {
@@ -26,9 +29,9 @@ func DecodeConsensusMessage(data []byte) (*ConsensusMessage, error) {
 	return &msg, nil
 }
 
-func BroadcastConsensusMessage(peers []*Peer, msg *ConsensusMessage) error {
+func BroadcastConsensusMessage(peers []*peer.Peer, msg *ConsensusMessage) error {
 	for _, peer := range peers {
-		conn, err := tls.Dial("tcp", peer.Addr, GenerateTLSConfig())
+		conn, err := tls.Dial("tcp", peer.Addr, crypto.GenerateTLSConfig())
 		if err != nil {
 			fmt.Printf("Can't connect to peer %s: %v\n", peer.ID, err)
 			continue

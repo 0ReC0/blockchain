@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	bft "./consensus/bft"
 	manager "./consensus/manager"
@@ -64,4 +65,35 @@ func main() {
 	}
 
 	select {}
+
+	// Инициализация блокчейна
+	chain := blockchain.NewBlockchain()
+
+	// Инициализация пула транзакций
+	txPool := txpool.NewTransactionPool()
+	tx1 := txpool.NewTransaction("A", "B", 10)
+	tx2 := txpool.NewTransaction("B", "C", 5)
+	txPool.AddTransaction(tx1)
+	txPool.AddTransaction(tx2)
+
+	// Инициализация BFT-ноды
+	val := pos.NewValidator("validator1", 2000)
+	bftNode := bft.NewBFTNode("validator1", val)
+
+	// Запуск консенсуса
+	go func() {
+		for {
+			bftNode.RunConsensusRound(txPool, chain)
+			bftNode.Height++
+			time.Sleep(10 * time.Second)
+		}
+	}()
+
+	// Выводим цепочку
+	for {
+		time.Sleep(30 * time.Second)
+		for _, block := range chain.Blocks {
+			fmt.Printf("Block %d: %s\n", block.Index, block.Hash)
+		}
+	}
 }
