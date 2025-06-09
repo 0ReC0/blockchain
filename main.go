@@ -120,4 +120,28 @@ func main() {
 	}
 	shieldedBlock := shielded.NewShieldedBlock(baseBlock, pool.GetTransactions(1))
 	fmt.Printf("Shielded block: %+v\n", shieldedBlock)
+
+	// Инициализация шардов
+	shardMgr := sharding.NewShardManager()
+	shardMgr.CreateShard("0")
+	shardMgr.CreateShard("1")
+	shardMgr.CreateShard("2")
+
+	// Инициализация пула транзакций
+	txPool := txpool.NewTransactionPool()
+	tx1 := txpool.NewTransaction("A", "B", 10)
+	tx2 := txpool.NewTransaction("B", "C", 5)
+	txPool.AddTransaction(tx1)
+	txPool.AddTransaction(tx2)
+
+	// Параллельная обработка
+	executor := parallel.NewParallelExecutor(4)
+	executor.ExecuteTransactions(txPool.GetTransactions(100), chain)
+
+	// Шардинг
+	shard := shardMgr.GetShardForAddress("A")
+	for _, tx := range txPool.GetTransactions(100) {
+		shard.AddTransaction(tx)
+	}
+	shard.FinalizeBlock()
 }
