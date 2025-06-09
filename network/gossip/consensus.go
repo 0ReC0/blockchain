@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"../crypto"
+	"../../crypto/signature"
 	"../peer"
 )
 
