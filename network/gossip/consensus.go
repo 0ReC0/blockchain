@@ -35,8 +35,13 @@ func HandleSignedMessage(data []byte) (*ConsensusMessage, error) {
 		return nil, err
 	}
 
-	// Проверяем подпись
-	if !signature.VerifySignature(msg.From, msg.Data, msg.Signature) {
+	// 1. Проверяем подпись
+	pubKey, err := signature.LoadPublicKey(msg.From)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load public key for %s: %v", msg.From, err)
+	}
+
+	if !signature.Verify(pubKey, msg.Data, msg.Signature) {
 		return nil, fmt.Errorf("invalid signature from %s", msg.From)
 	}
 

@@ -45,8 +45,8 @@ func (n *Node) PerformHandshake(conn *tls.Conn) error {
 
 	// Read response
 	buf := make([]byte, 1024)
-	n, _ := conn.Read(buf)
-	remoteHS, err := DeserializeHandshake(buf[:n])
+	bytesRead, err := conn.Read(buf)
+	remoteHS, err := DeserializeHandshake(buf[:bytesRead])
 	if err != nil {
 		return err
 	}
