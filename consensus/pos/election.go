@@ -17,7 +17,7 @@ func (p ValidatorPool) Select() *Validator {
 	}
 
 	// Использование репутации для выбора валидатора
-	repModule := reputation.NewReputationModule()
+	repModule := reputation.NewReputationSystem()
 
 	// Обновляем репутацию перед выбором
 	for _, v := range p {

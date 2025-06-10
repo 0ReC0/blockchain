@@ -118,7 +118,7 @@ func main() {
 
 	// ============ Инициализация голосования ============
 	voting := voting.NewVotingModule()
-	reputation := reputation.NewReputationModule()
+	reputation := reputation.NewReputationSystem()
 
 	// ============ Запуск всех компонентов ============
 	go bftNode.Start()
