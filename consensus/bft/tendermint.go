@@ -6,6 +6,7 @@ import (
 
 	"../../consensus/pos"
 	"../../crypto/signature"
+	"../../governance/reputation"
 	"../../network/gossip"
 	"../../network/peer"
 	"../../storage/blockchain"
@@ -60,6 +61,19 @@ func (n *BFTNode) RunConsensusRound() {
 	proposer := n.ValidatorPool.Select()
 	if proposer == nil {
 		fmt.Println("No proposer selected")
+		return
+	}
+
+	repModule := reputation.NewReputationSystem()
+
+	// Обновляем репутацию перед выбором
+	for _, v := range n.ValidatorPool {
+		repModule.UpdateReputation(v.Address, 1.0)
+	}
+
+	repScore := repModule.CalculateScore(proposer.Address, true)
+	if repScore < 50 {
+		fmt.Println("Validator has low reputation, skipping")
 		return
 	}
 

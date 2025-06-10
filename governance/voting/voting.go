@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"time"
+	"../../consensus/manager"
 )
 
 func GenerateID() string {
@@ -68,4 +69,20 @@ func (v *VotingModule) IsApproved(proposalID string) (bool, error) {
 
 	approvalRate := float64(yes) / float64(total)
 	return approvalRate >= proposal.Threshold, nil
+}
+
+func (v *VotingModule) ExecuteProposal(proposalID string) error {
+	proposal, exists := v.Proposals[proposalID]
+	if !exists {
+		return fmt.Errorf("proposal not found")
+	}
+	if approved, _ := v.IsApproved(proposalID); approved {
+		switch proposal.Title {
+		case "Switch to PoS":
+			switcher.Type = manager.ConsensusPoS
+		case "Switch to BFT":
+			switcher.Type = manager.ConsensusBFT
+		}
+	}
+	return nil
 }
