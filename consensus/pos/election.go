@@ -5,8 +5,7 @@ package pos
 import (
 	"math/rand"
 	"time"
-)
-import (
+
 	"../../governance/reputation"
 )
 

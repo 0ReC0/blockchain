@@ -11,12 +11,12 @@ type Contract interface {
 }
 
 type ContractHandler struct {
-	ERC20Contracts   map[string]*erc20.Token
+	ERC20Contracts map[string]*erc20.Token
 }
 
 func NewContractHandler() *ContractHandler {
 	return &ContractHandler{
-		ERC20Contracts:   make(map[string]*erc20.Token),
+		ERC20Contracts: make(map[string]*erc20.Token),
 	}
 }
 
