@@ -20,11 +20,11 @@ func NewBFTMessageHandler(peerMgr *peer.PeerManager) *BFTMessageHandler {
 
 func (h *BFTMessageHandler) ProcessMessage(msg *gossip.ConsensusMessage) {
 	switch msg.Type {
-	case gossip.MsgPropose:
+	case gossip.StatePropose:
 		h.HandlePropose(msg)
-	case gossip.MsgPrevote:
+	case gossip.StatePrevote:
 		h.HandlePrevote(msg)
-	case gossip.MsgPrecommit:
+	case gossip.StatePrecommit:
 		h.HandlePrecommit(msg)
 	default:
 		fmt.Printf("Unknown message type: %s\n", msg.Type)

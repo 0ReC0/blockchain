@@ -1,7 +1,10 @@
 package bft
 
 import (
+	"blockchain/network/gossip"
+	"blockchain/network/p2p"
 	"blockchain/storage/blockchain"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -10,7 +13,7 @@ import (
 
 // Message — тип сообщения между BFT-нодами
 type TcpMessage struct {
-	Type      ConsensusState
+	Type      gossip.MessageType
 	From      string
 	Data      []byte
 	Timestamp int64
@@ -53,7 +56,7 @@ func handleConnection(conn net.Conn, bftNode *BFTNode) {
 	round := bftNode.CurrentRound
 
 	switch msg.Type {
-	case StatePropose:
+	case gossip.StatePropose:
 		block := &blockchain.Block{}
 		if err := block.Deserialize(msg.Data); err != nil {
 			fmt.Printf("❌ Failed to deserialize block: %v\n", err)
@@ -62,11 +65,11 @@ func handleConnection(conn net.Conn, bftNode *BFTNode) {
 		round.ProposedBlock = msg.Data
 		fmt.Printf("📬 Received proposal from %s\n", msg.From)
 
-	case StatePrevote:
+	case gossip.StatePrevote:
 		round.Prevotes[msg.From] = msg.Data
 		fmt.Printf("📬 Received prevote from %s\n", msg.From)
 
-	case StatePrecommit:
+	case gossip.StatePrecommit:
 		round.Precommits[msg.From] = msg.Data
 		fmt.Printf("📬 Received precommit from %s\n", msg.From)
 
@@ -76,19 +79,19 @@ func handleConnection(conn net.Conn, bftNode *BFTNode) {
 }
 
 // BroadcastMessage — отправка сообщения всем пеерам
-func BroadcastMessage(bftNode *BFTNode, msgType ConsensusState, data []byte) {
+func BroadcastMessage(bftNode *BFTNode, msgType gossip.MessageType, data []byte) {
 	msg := TcpMessage{
 		Type:      msgType,
 		From:      bftNode.Address,
 		Data:      data,
 		Timestamp: time.Now().UnixNano(),
 	}
-
 	msgBytes, _ := json.Marshal(msg)
 
 	for _, peer := range bftNode.Peers {
 		go func(addr string) {
-			conn, err := net.Dial("tcp", addr)
+			// Используем TLS вместо обычного TCP
+			conn, err := tls.Dial("tcp", addr, p2p.GenerateTLSConfig())
 			if err != nil {
 				fmt.Printf("❌ Can't connect to peer %s: %v\n", addr, err)
 				return

@@ -15,12 +15,13 @@ const (
 	MsgPing    MessageType = "ping"
 	MsgPong    MessageType = "pong"
 
-	MsgVote MessageType = "VOTE" // Добавьте это
+	MsgVote MessageType = "VOTE"
 
 	// BFT сообщения
-	MsgPropose   MessageType = "propose"
-	MsgPrevote   MessageType = "prevote"
-	MsgPrecommit MessageType = "precommit"
+	StatePropose   MessageType = "propose"
+	StatePrevote   MessageType = "prevote"
+	StatePrecommit MessageType = "precommit"
+	StateCommit    MessageType = "commit"
 )
 
 type GossipMessage struct {

@@ -7,6 +7,8 @@ import (
 	"blockchain/consensus/pos"
 	"blockchain/crypto/signature"
 	"blockchain/governance/reputation"
+	"blockchain/network/gossip"
+	"blockchain/network/peer"
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
 )
@@ -20,7 +22,7 @@ type BFTNode struct {
 	Peers         []string
 	Height        int64
 	Round         int64
-	State         ConsensusState
+	State         gossip.MessageType
 	TxPool        *txpool.TransactionPool
 	Chain         *blockchain.Blockchain
 	Signer        signature.Signer
@@ -46,7 +48,7 @@ func NewBFTNode(
 		Peers:         peers,
 		Height:        0,
 		Round:         0,
-		State:         StatePropose,
+		State:         gossip.StatePropose,
 		TxPool:        txPool,
 		Chain:         chain,
 		Signer:        signer,
@@ -133,10 +135,10 @@ func (n *BFTNode) RunConsensusRound() {
 		block.Signature = signatureBytes
 
 		round.ProposedBlock = block.Serialize()
-		round.Step = StatePropose
+		round.Step = gossip.StatePropose
 
 		// Отправляем предложение
-		n.BroadcastSignedMessage(StatePropose, block.Serialize(), block.Signature)
+		n.BroadcastSignedMessage(gossip.StatePropose, block.Serialize(), block.Signature)
 		fmt.Printf("Proposed block %s with %d transactions\n", block.Hash, len(validTxs))
 	}
 
@@ -152,7 +154,7 @@ func (n *BFTNode) RunConsensusRound() {
 	}
 
 	round.Prevotes[n.Address] = prevoteSig
-	n.BroadcastSignedMessage(StatePrevote, prevoteData, prevoteSig)
+	n.BroadcastSignedMessage(gossip.StatePrevote, prevoteData, prevoteSig)
 	fmt.Printf("Prevote from %s\n", n.Address)
 
 	time.Sleep(1 * time.Second)
@@ -167,7 +169,7 @@ func (n *BFTNode) RunConsensusRound() {
 	}
 
 	round.Precommits[n.Address] = precommitSig
-	n.BroadcastSignedMessage(StatePrecommit, precommitData, precommitSig)
+	n.BroadcastSignedMessage(gossip.StatePrecommit, precommitData, precommitSig)
 	fmt.Printf("Precommit from %s\n", n.Address)
 
 	time.Sleep(1 * time.Second)
@@ -208,13 +210,28 @@ func (n *BFTNode) RunConsensusRound() {
 				fmt.Printf("Failed to sign commit: %v\n", err)
 				return
 			}
-			n.BroadcastSignedMessage(StateCommit, block.Serialize(), commitSig)
+			n.BroadcastSignedMessage(gossip.StateCommit, block.Serialize(), commitSig)
 			fmt.Printf("Block committed: %s\n", block.Hash)
 		}
 	}
 }
 
-func (n *BFTNode) BroadcastSignedMessage(msgType ConsensusState, data, signature []byte) {
-	// Используем нашу TCP-логику
-	BroadcastMessage(n, msgType, data)
+func (n *BFTNode) BroadcastSignedMessage(msgType gossip.MessageType, data, signature []byte) {
+	// Конвертируем []string в []*peer.Peer
+	peers := make([]*peer.Peer, len(n.Peers))
+	for i, addr := range n.Peers {
+		peers[i] = &peer.Peer{
+			Addr: addr,
+			ID:   addr, // или генерируй ID как-то иначе
+		}
+	}
+
+	gossip.BroadcastSignedConsensusMessage(peers, &gossip.SignedConsensusMessage{
+		Type:      msgType,
+		Height:    n.Height,
+		Round:     n.Round,
+		From:      n.Address,
+		Data:      data,
+		Signature: signature,
+	})
 }

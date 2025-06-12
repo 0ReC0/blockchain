@@ -116,7 +116,7 @@ func (n *Node) handleSecureConnection(conn *tls.Conn) {
 }
 func (n *Node) handleConsensusMessage(msg *gossip.ConsensusMessage) {
 	switch msg.Type {
-	case gossip.MsgPropose:
+	case gossip.StatePropose:
 		block := n.CreateBlockFromPool() // Используем пул
 		if block == nil {
 			return
