@@ -50,6 +50,7 @@ func NewBFTNode(
 		TxPool:        txPool,
 		Chain:         chain,
 		Signer:        signer,
+		CurrentRound:  NewRound(0, 0, ""),
 	}
 }
 
