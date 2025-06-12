@@ -1,24 +1,21 @@
-// bft/handler.go
-
 package bft
 
 import (
+	"blockchain/crypto/signature"
 	"blockchain/network/gossip"
-	"blockchain/network/peer"
+	"blockchain/storage/blockchain"
 	"fmt"
 )
 
 type BFTMessageHandler struct {
-	PeerManager *peer.PeerManager
+	Node *BFTNode
 }
 
-func NewBFTMessageHandler(peerMgr *peer.PeerManager) *BFTMessageHandler {
-	return &BFTMessageHandler{
-		PeerManager: peerMgr,
-	}
+func NewBFTMessageHandler(node *BFTNode) *BFTMessageHandler {
+	return &BFTMessageHandler{Node: node}
 }
 
-func (h *BFTMessageHandler) ProcessMessage(msg *gossip.ConsensusMessage) {
+func (h *BFTMessageHandler) ProcessMessage(msg *gossip.SignedConsensusMessage) {
 	switch msg.Type {
 	case gossip.StatePropose:
 		h.HandlePropose(msg)
@@ -27,26 +24,40 @@ func (h *BFTMessageHandler) ProcessMessage(msg *gossip.ConsensusMessage) {
 	case gossip.StatePrecommit:
 		h.HandlePrecommit(msg)
 	default:
-		fmt.Printf("Unknown message type: %s\n", msg.Type)
+		h.HandleUnknown(msg)
 	}
 }
 
-func (h *BFTMessageHandler) HandlePropose(msg *gossip.ConsensusMessage) {
-	fmt.Printf("[BFT] Received Propose: %s (Height: %d, Round: %d)\n", msg.From, msg.Height, msg.Round)
-	// Здесь можно проверить блок, сохранить и отправить prevote
+func (h *BFTMessageHandler) HandlePropose(msg *gossip.SignedConsensusMessage) {
+	block := &blockchain.Block{}
+	if err := block.Deserialize(msg.Data); err != nil {
+		return
+	}
+
+	// Получаем публичный ключ
+	pubKey, err := signature.GetPublicKey(block.Validator)
+	if err != nil {
+		return
+	}
+
+	// Проверяем подпись без поля Signature
+	if !signature.Verify(pubKey, block.SerializeWithoutSignature(), block.Signature) {
+		fmt.Println("❌ Invalid block signature")
+		return
+	}
+
+	// Сохраняем блок
+	h.Node.CurrentRound.ProposedBlock = msg.Data
 }
 
-func (h *BFTMessageHandler) HandlePrevote(msg *gossip.ConsensusMessage) {
-	fmt.Printf("[BFT] Received Prevote: %s (Height: %d, Round: %d)\n", msg.From, msg.Height, msg.Round)
-	// Здесь можно собрать prevotes и перейти к precommit
+func (h *BFTMessageHandler) HandlePrevote(msg *gossip.SignedConsensusMessage) {
+	h.Node.CurrentRound.Prevotes[msg.From] = msg.Data
 }
 
-func (h *BFTMessageHandler) HandlePrecommit(msg *gossip.ConsensusMessage) {
-	fmt.Printf("[BFT] Received Precommit: %s (Height: %d, Round: %d)\n", msg.From, msg.Height, msg.Round)
-	// Здесь можно проверить, собрано ли 2/3+ precommit'ов
+func (h *BFTMessageHandler) HandlePrecommit(msg *gossip.SignedConsensusMessage) {
+	h.Node.CurrentRound.Precommits[msg.From] = msg.Data
 }
 
-func (h *BFTMessageHandler) HandleCommit(msg *gossip.ConsensusMessage) {
-	fmt.Printf("[BFT] Received Commit: %s (Height: %d, Round: %d)\n", msg.From, msg.Height, msg.Round)
-	// Здесь можно добавить блок в блокчейн
+func (h *BFTMessageHandler) HandleUnknown(msg *gossip.SignedConsensusMessage) {
+	// fmt.Printf("Unknown message type: %s\n", msg.Type)
 }

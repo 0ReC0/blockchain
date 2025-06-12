@@ -3,7 +3,6 @@ package bft
 import (
 	"blockchain/network/gossip"
 	"blockchain/network/p2p"
-	"blockchain/storage/blockchain"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -65,30 +64,11 @@ func handleConnection(conn net.Conn, bftNode *BFTNode) {
 		return
 	}
 
-	// Получаем текущий раунд
-	round := bftNode.CurrentRound
+	// Создаём хендлер
+	handler := NewBFTMessageHandler(bftNode)
 
-	switch msg.Type {
-	case gossip.StatePropose:
-		block := &blockchain.Block{}
-		if err := block.Deserialize(msg.Data); err != nil {
-			fmt.Printf("❌ Failed to deserialize block: %v\n", err)
-			return
-		}
-		round.ProposedBlock = msg.Data
-		fmt.Printf("📬 Received proposal from %s\n", msg.From)
-
-	case gossip.StatePrevote:
-		round.Prevotes[msg.From] = msg.Data
-		fmt.Printf("📬 Received prevote from %s\n", msg.From)
-
-	case gossip.StatePrecommit:
-		round.Precommits[msg.From] = msg.Data
-		fmt.Printf("📬 Received precommit from %s\n", msg.From)
-
-	default:
-		fmt.Printf("⚠️ Unknown message type: %s\n", msg.Type)
-	}
+	// Обрабатываем сообщение
+	handler.ProcessMessage(&msg)
 }
 
 // BroadcastMessage — отправка сообщения всем пеерам
