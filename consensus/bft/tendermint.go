@@ -135,6 +135,8 @@ func (n *BFTNode) RunConsensusRound() {
 		block.Signature = signatureBytes
 
 		round.ProposedBlock = block.Serialize()
+		fmt.Printf("📬 RunConsensusRound ProposedBlock is nil? %v\n", round.ProposedBlock == nil)
+
 		round.Step = gossip.StatePropose
 
 		// Отправляем предложение
@@ -193,8 +195,8 @@ func (n *BFTNode) RunConsensusRound() {
 				return
 			}
 			// Проверяем подпись блока
-			if !signature.Verify(pubKey, block.Serialize(), block.Signature) {
-				fmt.Println("Invalid block signature")
+			if !signature.Verify(pubKey, block.SerializeWithoutSignature(), block.Signature) {
+				fmt.Println("[RunConsensusRound] Invalid block signature")
 				return
 			}
 

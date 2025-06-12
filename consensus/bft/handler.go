@@ -29,10 +29,12 @@ func (h *BFTMessageHandler) ProcessMessage(msg *gossip.SignedConsensusMessage) {
 }
 
 func (h *BFTMessageHandler) HandlePropose(msg *gossip.SignedConsensusMessage) {
+
 	block := &blockchain.Block{}
 	if err := block.Deserialize(msg.Data); err != nil {
 		return
 	}
+	fmt.Printf("📬 Received proposal from %s, block hash: %x\n", msg.From, block.Hash)
 
 	// Получаем публичный ключ
 	pubKey, err := signature.GetPublicKey(block.Validator)
@@ -42,12 +44,13 @@ func (h *BFTMessageHandler) HandlePropose(msg *gossip.SignedConsensusMessage) {
 
 	// Проверяем подпись без поля Signature
 	if !signature.Verify(pubKey, block.SerializeWithoutSignature(), block.Signature) {
-		fmt.Println("❌ Invalid block signature")
+		fmt.Println("❌ [HandlePropose] Invalid block signature")
 		return
 	}
 
 	// Сохраняем блок
 	h.Node.CurrentRound.ProposedBlock = msg.Data
+
 }
 
 func (h *BFTMessageHandler) HandlePrevote(msg *gossip.SignedConsensusMessage) {
