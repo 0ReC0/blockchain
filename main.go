@@ -154,9 +154,11 @@ func main() {
 	_, _ = bankGateway.GetBalance("user123")
 
 	// ============ Запуск BFT-узла ============
-	go bftNode.Start()
-
-	fmt.Println("✅ Blockchain system started. Waiting for connections...")
+	go func() {
+		time.Sleep(2 * time.Second) // даём время сети запуститься
+		bftNode.Start()
+		fmt.Println("✅ Blockchain system started. Waiting for connections...")
+	}()
 
 	// ============ Бесконечный цикл для поддержания работы сервера ============
 	select {}
