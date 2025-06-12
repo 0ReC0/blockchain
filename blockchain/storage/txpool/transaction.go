@@ -55,8 +55,6 @@ func (t *Transaction) Verify() bool {
 		return false
 	}
 	sigBytes, err := hex.DecodeString(t.Signature)
-	fmt.Printf("Raw signature (hex): %x\n", sigBytes)
-	fmt.Printf("Raw data (hex): %x\n", t.Serialize())
 	if err != nil {
 		fmt.Printf("❌ Failed to decode signature hex: %v\n", err)
 		return false
