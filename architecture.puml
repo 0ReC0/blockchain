@@ -1,0 +1,179 @@
+@startuml Blockchain
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+hide empty members
+
+' Top-level system
+package "Имитационная модель блокчейна" {
+
+  ' --------------------------
+  ' СЕТЕВОЙ УРОВЕНЬ (Network Layer)
+  ' --------------------------
+  package "Сетевой уровень" as NetworkLayer {
+    [P2P-сеть] as P2PNetwork
+    [Протокол взаимодействия узлов\n(Gossip, RPC)] as NodeComm
+    [Менеджер пиров\n(Peer Manager)] as PeerManager
+  }
+
+  ' --------------------------
+  ' УРОВЕНЬ КОНСЕНСУСА (Consensus Layer)
+  ' --------------------------
+  package "Уровень консенсуса" as ConsensusLayer {
+    [Менеджер PoS/DPoS\n(Validator Selector)] as PoSValidator
+    [Алгоритм BFT\n(PBFT/Tendermint)] as BFTEngine
+    [Компонент выбора алгоритма\n(Consensus Switcher)] as ConsensusSwitcher
+  }
+
+  ' --------------------------
+  ' УРОВЕНЬ ХРАНЕНИЯ И СТРУКТУР ДАННЫХ (Data & Storage Layer)
+  ' --------------------------
+  package "Уровень хранения и структур данных" as StorageLayer {
+    [Блокчейн\n(Линейная цепочка / Шарды)] as BlockchainDB
+    [Шардинг-модуль\n(Shard Manager)] as ShardManager
+    [Очередь транзакций\n(Transaction Pool)] as TxPool
+  }
+
+  ' --------------------------
+  ' КРИПТОГРАФИЧЕСКИЙ МОДУЛЬ (Crypto Layer)
+  ' --------------------------
+  package "Криптографический модуль" as CryptoLayer {
+    [Цифровые подписи\n(ECDSA)] as SignatureModule
+    [Хеш-функции\n(SHA-256)] as HashModule
+    [Шифрование данных\n(Симметричное/Асимметричное)] as EncryptionModule
+  }
+
+  ' --------------------------
+  ' МОДУЛЬ ПРИВАТНОСТИ (Privacy Layer)
+  ' --------------------------
+  package "Модуль приватности" as PrivacyLayer {
+    [ZKP-модуль\n(Zero-Knowledge Proofs)] as ZKPModule
+    [Гомоморфное шифрование] as HomomorphicModule
+    [Конфиденциальные транзакции] as ConfidentialTx
+  }
+
+  ' --------------------------
+  ' МОДУЛЬ МАСШТАБИРУЕМОСТИ (Scalability Layer)
+  ' --------------------------
+  package "Модуль масштабируемости" as ScalabilityLayer {
+    [Оптимистичная раскатка\n(Optimistic Rollups)] as OptimisticRollups
+    [Сайдчейны\n(Sidechains)] as SidechainModule
+    [Шардинг-интегратор] as ShardIntegrator
+  }
+
+  ' --------------------------
+  ' СМАРТ-КОНТРАКТЫ И ТОКЕНИЗАЦИЯ (Smart Contract & Token Layer)
+  ' --------------------------
+  package "Смарт-контракты и токенизация" as SmartContractLayer {
+    [Менеджер токенов\n(Token Manager)\n(ERC-20)] as TokenManager
+    [DSL для финансовых деривативов] as FinancialDSL
+  }
+
+  ' --------------------------
+  ' УРОВЕНЬ ИНТЕГРАЦИИ (Integration Layer)
+  ' --------------------------
+  package "Уровень интеграции" as IntegrationLayer {
+    [REST API / JSON-RPC] as APIEndpoint
+    [Шлюз к банковским системам\n(Bank Gateway)] as BankGateway
+    [Интерфейс межблокейнового обмена\n(Cross-Chain Module)] as CrossChainModule
+  }
+
+  ' --------------------------
+  ' МОДУЛЬ УПРАВЛЕНИЯ И ГОВЕРНАНСА (Governance Layer)
+  ' --------------------------
+  package "Модуль управления и говернанса" as GovernanceLayer {
+    [Система голосования узлов\n(Proposal & Voting)] as VotingModule
+    [Репутационная система узлов\n(Node Reputation)] as ReputationModule
+    [Менеджер обновлений\n(Upgrade Manager)] as UpgradeManager
+  }
+
+  ' --------------------------
+  ' МОДУЛЬ БЕЗОПАСНОСТИ (Security Layer)
+  ' --------------------------
+  package "Модуль безопасности" as SecurityLayer {
+    [Защита от\n«двойных расходов»] as DoubleSpendGuard
+    [Защита от атак Sybil\n(Sybil Protection)] as SybilGuard
+    [Защита от атак 51%\n(51% Defense)] as FiftyOnePercentGuard
+    [Аудит журналов\n(Security Audits)] as AuditLogs
+  }
+
+  ' --------------------------
+  ' СВЯЗИ МЕЖДУ КОМПОНЕНТАМИ
+  ' --------------------------
+
+  ' Сетевой уровень взаимодействует со всеми остальными
+  P2PNetwork        --> ConsensusSwitcher      : "Рассылка блоков и транзакций"
+  P2PNetwork        --> BlockchainDB          : "Синхронизация данных"
+  P2PNetwork        --> ShardManager          : "Уведомления о шардах"
+  P2PNetwork        --> APIEndpoint           : "Прием входящих запросов"
+  PeerManager       --> P2PNetwork            : "Управление списком пиров"
+  NodeComm          --> PeerManager           : "RPC-вызовы между узлами"
+
+  ' Consensus Layer взаимодействует с Crypto и Storage
+  ConsensusSwitcher --> PoSValidator          : "Выбор валидаторов (PoS/DPoS)"
+  ConsensusSwitcher --> BFTEngine             : "Использование BFT протоколов"
+  PoSValidator      --> SignatureModule       : "Валидация цифровых подписей"
+  BFTEngine         --> NodeComm              : "Обмен сообщениями для BFT"
+  BFTEngine         --> HashModule            : "Проверка хешей блоков"
+  PoSValidator      --> BlockchainDB          : "Добавление блоков"
+  BFTEngine         --> BlockchainDB          : "Добавление блоков"
+
+  ' Data & Storage Layer взаимодействует с Crypto и Scalability
+  TxPool            --> SignatureModule       : "Проверка подлинности транзакций"
+  TxPool            --> HashModule            : "Генерация хеша транзакции"
+  BlockchainDB      --> HashModule            : "Хеширование блоков"
+  BlockchainDB      --> DAGStorage            : "Конвертация в DAG (опционально)"
+  ShardManager      --> BlockchainDB          : "Распределение сохранения шарда"
+  ShardManager      --> ShardIntegrator       : "Синхронизация между шардами"
+
+  ' Crypto Layer взаимодействует с Privacy и Security
+  SignatureModule   --> ZKPModule             : "Проверка ZKP-подписей"
+  HashModule        --> ZKPModule             : "Использование хешей в ZKP"
+  EncryptionModule  --> HomomorphicModule      : "Гомоморфная обработка"
+  EncryptionModule  --> ConfidentialTx        : "Шифрование сумм транзакций"
+  SignatureModule   --> AuditLogs             : "Логирование подписей"
+
+  ' Privacy Layer взаимодействует с Storage и SmartContract
+  ZKPModule         --> TxPool                : "Валидация транзакций без раскрытия"
+  ConfidentialTx    --> BlockchainDB          : "Сохранение зашифрованных данных"
+  HomomorphicModule --> FinancialDSL          : "Вычисления над зашифрованными данными"
+
+  ' Scalability Layer взаимодействует с Storage и Network
+  OptimisticRollups --> NodeComm              : "Обмен сообщениями по P2P"
+  OptimisticRollups --> BlockchainDB          : "Запись результатов в блокчейн"
+  SidechainModule   --> CrossChainModule      : "Перевод активов на сайдчейн"
+  ShardIntegrator   --> StateChannels         : "Перенаправление транзакций в шард"
+  ShardIntegrator   --> SidechainModule       : "Обмен данных между сайдчейнами"
+
+  ' SmartContract Layer взаимодействует с Crypto, Storage и Integration
+  VMEngine          --> SignatureModule       : "Проверка подлинности вызовов"
+  VMEngine          --> HashModule            : "Хеширование кода контрактов"
+  VMEngine          --> TokenManager          : "Управление логикой токенов"
+  TokenManager      --> BlockchainDB          : "Запись состояний токенов"
+  FinancialDSL      --> VMEngine              : "Генерация байткода смарт-контрактов"
+  FinancialDSL      --> EncryptionModule      : "Использование функций шифрования"
+
+  ' Integration Layer связывает внешние системы
+  APIEndpoint       --> VMEngine              : "Вызов функций контракта"
+  APIEndpoint       --> TxPool                : "Прием транзакций от клиентов"
+  BankGateway       --> APIEndpoint           : "Получение / отправка банковских операций"
+  CrossChainModule  --> SidechainModule       : "Мост к другим блокчейнам"
+  CrossChainModule  --> APIEndpoint           : "REST запросы для проверки данных"
+
+  ' Governance Layer взаимодействует со всеми остальными
+  VotingModule      --> ConsensusSwitcher     : "Изменение параметров консенсуса"
+  VotingModule      --> UpgradeManager        : "Принятие обновлений протокола"
+  ReputationModule  --> PoSValidator          : "Оценка валидаторов"
+  ReputationModule  --> BFTEngine             : "Оценка узлов BFT"
+  UpgradeManager    --> VMEngine              : "Обновление среды выполнения"
+  UpgradeManager    --> HashModule            : "Обновление хеш-функции (если нужно)"
+
+  ' Security Layer взаимодействует со всеми остальными
+  DoubleSpendGuard  --> TxPool                : "Проверка на двойную трату"
+  SybilGuard        --> PeerManager           : "Ограничения по регистрации узлов"
+  FiftyOnePercentGuard --> ConsensusSwitcher  : "Мониторинг доли голосов"
+  AuditLogs         --> UpgradeManager        : "Логирование изменений протокола"
+  AuditLogs         --> ReputationModule      : "Отчеты по безопасности узлов"
+
+}
+
+@enduml
