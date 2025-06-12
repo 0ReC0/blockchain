@@ -1,8 +1,9 @@
 package blockchain
 
 import (
+	"bytes"
 	"crypto/sha256"
-	"encoding/json"
+	"encoding/gob"
 	"fmt"
 	"time"
 
@@ -10,14 +11,14 @@ import (
 )
 
 type Block struct {
-	Index        int64
-	Timestamp    int64
-	PrevHash     string
-	Hash         string
-	Transactions []*txpool.Transaction
-	Validator    string
-	Nonce        string
-	Signature    []byte
+	Index        int64                 `json:"index"`
+	Timestamp    int64                 `json:"timestamp"`
+	PrevHash     string                `json:"prev_hash"`
+	Hash         string                `json:"hash"`
+	Transactions []*txpool.Transaction `json:"transactions"`
+	Validator    string                `json:"validator"`
+	Nonce        string                `json:"nonce"`
+	Signature    []byte                `json:"signature"`
 }
 
 func NewBlock(index int64, prevHash string, transactions []*txpool.Transaction, validator string) *Block {
@@ -57,10 +58,16 @@ func (b *Block) TransactionsHash() string {
 }
 
 func (b *Block) Serialize() []byte {
-	data, _ := json.Marshal(b)
-	return data
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	if err := enc.Encode(b); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
 func (b *Block) Deserialize(data []byte) error {
-	return json.Unmarshal(data, b)
+	buf := bytes.NewBuffer(data)
+	dec := gob.NewDecoder(buf)
+	return dec.Decode(b)
 }

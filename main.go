@@ -107,6 +107,9 @@ func main() {
 		peerAddresses[1],
 		peerAddresses,
 	)
+	// Регистрируем публичные ключи валидаторов
+	signature.RegisterPublicKey(validators[0].Address, pubKey)
+	signature.RegisterPublicKey(validators[1].Address, pubKey)
 
 	// ============ Инициализация ConsensusSwitcher ============
 	// switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
