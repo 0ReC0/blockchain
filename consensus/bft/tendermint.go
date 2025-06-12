@@ -135,7 +135,6 @@ func (n *BFTNode) RunConsensusRound() {
 		block.Signature = signatureBytes
 
 		round.ProposedBlock = block.Serialize()
-		fmt.Printf("📬 RunConsensusRound ProposedBlock is nil? %v\n", round.ProposedBlock == nil)
 
 		round.Step = gossip.StatePropose
 
@@ -176,47 +175,56 @@ func (n *BFTNode) RunConsensusRound() {
 
 	time.Sleep(1 * time.Second)
 
-	fmt.Printf("📬 Precommits received: %d\n", len(round.Precommits))
-	fmt.Printf("📬 ProposedBlock is nil? %v\n", round.ProposedBlock == nil)
-
 	// 4. Commit
-	if len(round.Precommits) >= 2 {
+	totalValidators := len(n.ValidatorPool)
+
+	if HasQuorum(round.Precommits, totalValidators) {
 		if round.ProposedBlock != nil {
 			// Десериализуем блок
 			block := &blockchain.Block{}
 			if err := block.Deserialize(round.ProposedBlock); err != nil {
-				fmt.Printf("Failed to deserialize block: %v\n", err)
+				fmt.Printf("❌ Failed to deserialize block: %v\n", err)
 				return
 			}
+
+			fmt.Printf("📬 Block received from proposer: %s, hash: %s\n", block.Validator, block.Hash)
 
 			pubKey, err := signature.GetPublicKey(block.Validator)
 			if err != nil {
 				fmt.Printf("Validator %s has no public key: %v\n", block.Validator, err)
 				return
 			}
+
 			// Проверяем подпись блока
 			if !signature.Verify(pubKey, block.SerializeWithoutSignature(), block.Signature) {
-				fmt.Println("[RunConsensusRound] Invalid block signature")
+				fmt.Println("[RunConsensusRound] ❌ Invalid block signature")
 				return
 			}
 
+			fmt.Printf("✅ Block signature verified for block: %s\n", block.Hash)
+
 			// Добавляем блок в цепочку
 			n.Chain.Blocks = append(n.Chain.Blocks, block)
+			fmt.Printf("✅ Block added to chain: %s\n", block.Hash)
 
 			// Очищаем транзакции из пула
 			for _, tx := range block.Transactions {
 				n.TxPool.RemoveTransaction(tx.ID)
+				fmt.Printf("🗑️ Removed transaction: %s\n", tx.ID)
 			}
 
 			// Подписываем коммит
-
 			commitSig, err := n.Signer.Sign(block.SerializeWithoutSignature())
 			if err != nil {
-				fmt.Printf("Failed to sign commit: %v\n", err)
+				fmt.Printf("❌ Failed to sign commit: %v\n", err)
 				return
 			}
+
+			// Рассылаем коммит
 			n.BroadcastSignedMessage(gossip.StateCommit, block.SerializeWithoutSignature(), commitSig)
-			fmt.Printf("Block committed: %s\n", block.Hash)
+			fmt.Printf("✅ Block committed: %s\n", block.Hash)
+		} else {
+			fmt.Println("❌ ProposedBlock is nil — cannot commit")
 		}
 	}
 }

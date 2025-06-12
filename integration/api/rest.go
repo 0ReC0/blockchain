@@ -25,7 +25,16 @@ func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool) 
 
 func (s *APIServer) Start(addr string) error {
 	http.HandleFunc("/blocks", s.handleBlocks)
-	http.HandleFunc("/transactions", s.handleTransactions)
+	http.HandleFunc("/transactions", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			s.handleTransactions(w, r)
+		case "POST":
+			s.handleAddTransaction(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 	http.HandleFunc("/contract/deploy", s.handleDeployContract)
 	http.HandleFunc("/contract/call", s.handleCallContract)
 	return http.ListenAndServe(addr, nil)
@@ -86,5 +95,25 @@ func (s *APIServer) handleDeployContract(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"address": addr,
+	})
+}
+
+func (s *APIServer) handleAddTransaction(w http.ResponseWriter, r *http.Request) {
+	tx := &txpool.Transaction{}
+	if err := json.NewDecoder(r.Body).Decode(tx); err != nil {
+		http.Error(w, "Invalid transaction format", http.StatusBadRequest)
+		return
+	}
+
+	if !tx.Verify() {
+		http.Error(w, "Invalid transaction signature", http.StatusBadRequest)
+		return
+	}
+
+	s.TxPool.AddTransaction(tx)
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":      "success",
+		"transaction": tx.ID,
 	})
 }
