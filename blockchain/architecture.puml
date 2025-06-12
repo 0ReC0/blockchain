@@ -1,4 +1,4 @@
-@startuml Blockchain
+@startuml
 skinparam componentStyle rectangle
 skinparam packageStyle rectangle
 hide empty members
@@ -47,7 +47,6 @@ package "Имитационная модель блокчейна" {
   ' --------------------------
   package "Модуль приватности" as PrivacyLayer {
     [ZKP-модуль\n(Zero-Knowledge Proofs)] as ZKPModule
-    [Гомоморфное шифрование] as HomomorphicModule
     [Конфиденциальные транзакции] as ConfidentialTx
   }
 
@@ -56,8 +55,6 @@ package "Имитационная модель блокчейна" {
   ' --------------------------
   package "Модуль масштабируемости" as ScalabilityLayer {
     [Оптимистичная раскатка\n(Optimistic Rollups)] as OptimisticRollups
-    [Сайдчейны\n(Sidechains)] as SidechainModule
-    [Шардинг-интегратор] as ShardIntegrator
   }
 
   ' --------------------------
@@ -65,7 +62,6 @@ package "Имитационная модель блокчейна" {
   ' --------------------------
   package "Смарт-контракты и токенизация" as SmartContractLayer {
     [Менеджер токенов\n(Token Manager)\n(ERC-20)] as TokenManager
-    [DSL для финансовых деривативов] as FinancialDSL
   }
 
   ' --------------------------
@@ -74,13 +70,12 @@ package "Имитационная модель блокчейна" {
   package "Уровень интеграции" as IntegrationLayer {
     [REST API / JSON-RPC] as APIEndpoint
     [Шлюз к банковским системам\n(Bank Gateway)] as BankGateway
-    [Интерфейс межблокейнового обмена\n(Cross-Chain Module)] as CrossChainModule
   }
 
   ' --------------------------
-  ' МОДУЛЬ УПРАВЛЕНИЯ И ГОВЕРНАНСА (Governance Layer)
+  ' МОДУЛЬ УПРАВЛЕНИЯ И ГОВЕРНАНС (Governance Layer)
   ' --------------------------
-  package "Модуль управления и говернанса" as GovernanceLayer {
+  package "Модуль управления и говернанс" as GovernanceLayer {
     [Система голосования узлов\n(Proposal & Voting)] as VotingModule
     [Репутационная система узлов\n(Node Reputation)] as ReputationModule
     [Менеджер обновлений\n(Upgrade Manager)] as UpgradeManager
@@ -121,50 +116,35 @@ package "Имитационная модель блокчейна" {
   TxPool            --> SignatureModule       : "Проверка подлинности транзакций"
   TxPool            --> HashModule            : "Генерация хеша транзакции"
   BlockchainDB      --> HashModule            : "Хеширование блоков"
-  BlockchainDB      --> DAGStorage            : "Конвертация в DAG (опционально)"
   ShardManager      --> BlockchainDB          : "Распределение сохранения шарда"
-  ShardManager      --> ShardIntegrator       : "Синхронизация между шардами"
 
   ' Crypto Layer взаимодействует с Privacy и Security
   SignatureModule   --> ZKPModule             : "Проверка ZKP-подписей"
   HashModule        --> ZKPModule             : "Использование хешей в ZKP"
-  EncryptionModule  --> HomomorphicModule      : "Гомоморфная обработка"
   EncryptionModule  --> ConfidentialTx        : "Шифрование сумм транзакций"
   SignatureModule   --> AuditLogs             : "Логирование подписей"
 
   ' Privacy Layer взаимодействует с Storage и SmartContract
   ZKPModule         --> TxPool                : "Валидация транзакций без раскрытия"
   ConfidentialTx    --> BlockchainDB          : "Сохранение зашифрованных данных"
-  HomomorphicModule --> FinancialDSL          : "Вычисления над зашифрованными данными"
 
   ' Scalability Layer взаимодействует с Storage и Network
-  OptimisticRollups --> NodeComm              : "Обмен сообщениями по P2P"
-  OptimisticRollups --> BlockchainDB          : "Запись результатов в блокчейн"
-  SidechainModule   --> CrossChainModule      : "Перевод активов на сайдчейн"
-  ShardIntegrator   --> StateChannels         : "Перенаправление транзакций в шард"
-  ShardIntegrator   --> SidechainModule       : "Обмен данных между сайдчейнами"
+  OptimisticRollups --> BlockchainDB          : "Финализирует состояние в блокчейн"
+  OptimisticRollups --> NodeComm              : "Обмен состоянием по каналу"
 
   ' SmartContract Layer взаимодействует с Crypto, Storage и Integration
-  VMEngine          --> SignatureModule       : "Проверка подлинности вызовов"
-  VMEngine          --> HashModule            : "Хеширование кода контрактов"
-  VMEngine          --> TokenManager          : "Управление логикой токенов"
   TokenManager      --> BlockchainDB          : "Запись состояний токенов"
-  FinancialDSL      --> VMEngine              : "Генерация байткода смарт-контрактов"
-  FinancialDSL      --> EncryptionModule      : "Использование функций шифрования"
 
   ' Integration Layer связывает внешние системы
-  APIEndpoint       --> VMEngine              : "Вызов функций контракта"
   APIEndpoint       --> TxPool                : "Прием транзакций от клиентов"
+  APIEndpoint       --> BlockchainDB          : "Получение данных блокчейна"
   BankGateway       --> APIEndpoint           : "Получение / отправка банковских операций"
-  CrossChainModule  --> SidechainModule       : "Мост к другим блокчейнам"
-  CrossChainModule  --> APIEndpoint           : "REST запросы для проверки данных"
 
   ' Governance Layer взаимодействует со всеми остальными
   VotingModule      --> ConsensusSwitcher     : "Изменение параметров консенсуса"
   VotingModule      --> UpgradeManager        : "Принятие обновлений протокола"
   ReputationModule  --> PoSValidator          : "Оценка валидаторов"
   ReputationModule  --> BFTEngine             : "Оценка узлов BFT"
-  UpgradeManager    --> VMEngine              : "Обновление среды выполнения"
   UpgradeManager    --> HashModule            : "Обновление хеш-функции (если нужно)"
 
   ' Security Layer взаимодействует со всеми остальными
@@ -175,5 +155,4 @@ package "Имитационная модель блокчейна" {
   AuditLogs         --> ReputationModule      : "Отчеты по безопасности узлов"
 
 }
-
 @enduml
