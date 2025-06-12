@@ -2,11 +2,10 @@ package txpool
 
 import (
 	"encoding/json"
-	"math/big"
+	"fmt"
 	"time"
 
 	"blockchain/crypto/signature"
-	"blockchain/privacy/zkp"
 )
 
 type Transaction struct {
@@ -32,39 +31,34 @@ func NewTransaction(from, to string, amount float64) *Transaction {
 }
 
 func (t *Transaction) Serialize() []byte {
-	// Не сериализуем поля, которые не должны влиять на подпись
 	temp := struct {
 		From      string
 		To        string
 		Amount    float64
 		Timestamp int64
-		IsPrivate bool
 	}{
 		From:      t.From,
 		To:        t.To,
 		Amount:    t.Amount,
 		Timestamp: t.Timestamp,
-		IsPrivate: t.IsPrivate,
 	}
 	data, _ := json.Marshal(temp)
 	return data
 }
+
 func (t *Transaction) Verify() bool {
-	pubKey, err := signature.LoadPublicKey(t.From)
+	// 1. Получаем публичный ключ из реестра
+	pubKey, err := signature.GetPublicKey(t.From)
 	if err != nil {
+		fmt.Printf("Public key not found for %s: %v\n", t.From, err)
 		return false
 	}
 
-	// Используем X-координату как "публичный ключ" для ZKP
-	publicKeyForZKP := pubKey.X
-
-	zkp := zkp.NewZKPSystem()
-	proof, _ := zkp.ProveKnowledge(big.NewInt(12345)) // здесь должен быть секретный ключ
-
-	if !zkp.VerifyProof(publicKeyForZKP, proof) {
+	// 2. Проверяем подпись
+	if !signature.Verify(pubKey, t.Serialize(), []byte(t.Signature)) {
+		fmt.Printf("Signature verification failed for transaction %s\n", t.ID)
 		return false
 	}
 
-	// Проверяем подпись транзакции
-	return signature.Verify(pubKey, t.Serialize(), []byte(t.Signature))
+	return true
 }
