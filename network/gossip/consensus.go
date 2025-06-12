@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"../../crypto/signature"
+	"../../network/p2p"
 	"../peer"
 )
 
@@ -45,12 +46,18 @@ func HandleSignedMessage(data []byte) (*ConsensusMessage, error) {
 		return nil, fmt.Errorf("invalid signature from %s", msg.From)
 	}
 
-	return msg, nil
+	return &ConsensusMessage{
+		Type:   msg.Type,
+		Height: msg.Height,
+		Round:  msg.Round,
+		From:   msg.From,
+		Data:   msg.Data,
+	}, nil
 }
 
 func BroadcastConsensusMessage(peers []*peer.Peer, msg *ConsensusMessage) error {
 	for _, peer := range peers {
-		conn, err := tls.Dial("tcp", peer.Addr, crypto.GenerateTLSConfig())
+		conn, err := tls.Dial("tcp", peer.Addr, p2p.GenerateTLSConfig())
 		if err != nil {
 			fmt.Printf("Can't connect to peer %s: %v\n", peer.ID, err)
 			continue

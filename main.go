@@ -29,7 +29,6 @@ import (
 	// Интеграция
 	"./integration/api"
 	"./integration/bank"
-	"./integration/crosschain"
 
 	// Говернанс
 	"./governance/reputation"
@@ -111,7 +110,6 @@ func main() {
 	// ============ Инициализация межблокчейновой интеграции ============
 	chainA := blockchain.NewBlockchain()
 	chainB := blockchain.NewBlockchain()
-	bridge := crosschain.NewChainBridge(chainA, chainB)
 
 	// ============ Инициализация банковского шлюза ============
 	bank := bank.NewBankGateway("api-key", "https://bank-api.com")

@@ -1,6 +1,10 @@
 package blockchain
 
-import txpool "../txpool"
+import (
+	"fmt"
+
+	txpool "../txpool"
+)
 
 type Blockchain struct {
 	Blocks []*Block
@@ -20,4 +24,25 @@ func (bc *Blockchain) AddBlock(transactions []*txpool.Transaction, validator str
 	prevBlock := bc.Blocks[len(bc.Blocks)-1]
 	newBlock := NewBlock(prevBlock.Index+1, prevBlock.Hash, transactions, validator)
 	bc.Blocks = append(bc.Blocks, newBlock)
+}
+func (bc *Blockchain) GetBlockByNumber(blockNumber interface{}) *Block {
+	// Предположим, что blockNumber — это строка вида "0x1" или число
+	numStr, ok := blockNumber.(string)
+	if !ok {
+		return nil
+	}
+
+	// Упрощённый парсинг hex
+	var num int64
+	_, err := fmt.Sscanf(numStr, "0x%x", &num)
+	if err != nil {
+		return nil
+	}
+
+	for _, block := range bc.Blocks {
+		if block.Header.Number == num {
+			return block
+		}
+	}
+	return nil
 }

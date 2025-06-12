@@ -12,6 +12,13 @@ const (
 	MsgTx      MessageType = "tx"
 	MsgStatus  MessageType = "status"
 	MsgRequest MessageType = "request"
+	MsgPing    MessageType = "ping"
+	MsgPong    MessageType = "pong"
+
+	// BFT сообщения
+	MsgPropose   MessageType = "propose"
+	MsgPrevote   MessageType = "prevote"
+	MsgPrecommit MessageType = "precommit"
 )
 
 type Message struct {

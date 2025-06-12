@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"time"
+
 	"../../consensus/manager"
 )
 
@@ -16,11 +17,13 @@ func GenerateID() string {
 
 type VotingModule struct {
 	Proposals map[string]*Proposal
+	switcher  *manager.ConsensusSwitcher
 }
 
-func NewVotingModule() *VotingModule {
+func NewVotingModule(switcher *manager.ConsensusSwitcher) *VotingModule {
 	return &VotingModule{
 		Proposals: make(map[string]*Proposal),
+		switcher:  switcher,
 	}
 }
 
@@ -76,12 +79,13 @@ func (v *VotingModule) ExecuteProposal(proposalID string) error {
 	if !exists {
 		return fmt.Errorf("proposal not found")
 	}
+
 	if approved, _ := v.IsApproved(proposalID); approved {
 		switch proposal.Title {
 		case "Switch to PoS":
-			switcher.Type = manager.ConsensusPoS
+			v.switcher.Type = manager.ConsensusPoS
 		case "Switch to BFT":
-			switcher.Type = manager.ConsensusBFT
+			v.switcher.Type = manager.ConsensusBFT
 		}
 	}
 	return nil

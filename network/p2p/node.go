@@ -5,6 +5,7 @@ package p2p
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
 
 	"../../consensus/bft"
 	"../gossip"
@@ -29,13 +30,28 @@ func (n *Node) Start() {
 	fmt.Printf("Node %s started at %s\n", n.ID, n.Addr)
 	go n.listenTLS()
 }
-
 func (n *Node) listenTLS() {
 	config := GenerateTLSConfig()
-	listener, _ := tls.Listen("tcp", n.Addr, config)
+	listener, err := tls.Listen("tcp", n.Addr, config)
+	if err != nil {
+		log.Fatalf("Failed to start TLS listener: %v", err)
+	}
 	for {
-		conn, _ := listener.Accept()
-		go n.handleSecureConnection(conn)
+		rawConn, err := listener.Accept()
+		if err != nil {
+			log.Printf("Failed to accept connection: %v", err)
+			continue
+		}
+
+		// Приводим net.Conn к *tls.Conn
+		tlsConn, ok := rawConn.(*tls.Conn)
+		if !ok {
+			log.Println("Connection is not a TLS connection")
+			rawConn.Close()
+			continue
+		}
+
+		go n.handleSecureConnection(tlsConn)
 	}
 }
 
@@ -49,13 +65,13 @@ func (n *Node) handleSecureConnection(conn *tls.Conn) {
 
 	for {
 		buf := make([]byte, 4096)
-		n, err := conn.Read(buf)
+		nBytes, err := conn.Read(buf)
 		if err != nil {
 			fmt.Printf("Connection closed: %v\n", err)
 			return
 		}
 
-		msg, err := gossip.DecodeConsensusMessage(buf[:n])
+		msg, err := gossip.DecodeConsensusMessage(buf[:nBytes])
 		if err != nil {
 			// Обработка сообщений консенсуса
 			go n.handleConsensusMessage(msg)
@@ -76,4 +92,22 @@ func (n *Node) handleConsensusMessage(msg *gossip.ConsensusMessage) {
 	// Передача сообщений консенсуса в модуль BFT
 	bftHandler := bft.NewBFTMessageHandler(n.PeerMgr)
 	bftHandler.ProcessMessage(msg)
+}
+
+func (n *Node) handlePing(conn *tls.Conn, msg *gossip.ConsensusMessage) {
+	fmt.Printf("Received ping from %s\n", msg.From)
+
+	// Отправляем pong
+	pong := &gossip.ConsensusMessage{
+		Type:   gossip.MsgPong,
+		From:   n.ID,
+		Height: msg.Height,
+		Round:  msg.Round,
+	}
+	data, _ := pong.Encode()
+
+	_, err := conn.Write(data)
+	if err != nil {
+		fmt.Printf("Failed to send pong: %v\n", err)
+	}
 }

@@ -61,12 +61,23 @@ func (t *Token) Allowance(owner, spender string) uint64 {
 	return t.Allowances[owner][spender]
 }
 
-func (t *Token) TransferFrom(from, to string, amount uint64) bool {
+func (t *Token) TransferFrom(spender, from, to string, amount uint64) bool {
+	// Проверяем, что spender имеет достаточно allowance
 	if t.Allowances[from][spender] < amount {
 		return false
 	}
+
+	// Проверяем, что у from достаточно баланса
+	if t.Balances[from] < amount {
+		return false
+	}
+
+	// Выполняем перевод
 	t.Balances[from] -= amount
 	t.Balances[to] += amount
+
+	// Уменьшаем allowance
 	t.Allowances[from][spender] -= amount
+
 	return true
 }
