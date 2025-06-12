@@ -1,4 +1,4 @@
-package p2p
+package bft
 
 // запуск узла
 
@@ -16,7 +16,7 @@ func StartNetwork() {
 	go peer.ListenForPeers()
 
 	// Отправка тестового блока
-	msg := &gossip.Message{
+	msg := &gossip.GossipMessage{
 		Type: gossip.MsgBlock,
 		From: node.ID,
 		Data: []byte("block-123"),

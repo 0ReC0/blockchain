@@ -1,21 +1,39 @@
-package p2p
+package bft
 
 // точка входа узла
 
 import (
+	"blockchain/network/gossip"
+	"blockchain/network/p2p"
+	"blockchain/network/peer"
 	"crypto/tls"
 	"fmt"
 	"log"
-
-	"blockchain/consensus/bft"
-	"blockchain/network/gossip"
-	"blockchain/network/peer"
 )
 
 type Node struct {
 	ID      string
 	Addr    string
 	PeerMgr *peer.PeerManager
+}
+
+func (n *Node) PerformHandshake(conn *tls.Conn) error {
+	hs := p2p.NewHandshake(n.ID)
+	data, _ := hs.Serialize()
+	_, err := conn.Write(data)
+	if err != nil {
+		return err
+	}
+
+	// Read response
+	buf := make([]byte, 1024)
+	bytesRead, err := conn.Read(buf)
+	remoteHS, err := p2p.DeserializeHandshake(buf[:bytesRead])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Handshake with %s successful\n", remoteHS.NodeID)
+	return nil
 }
 
 func NewNode(id, addr string) *Node {
@@ -31,7 +49,7 @@ func (n *Node) Start() {
 	go n.listenTLS()
 }
 func (n *Node) listenTLS() {
-	config := GenerateTLSConfig()
+	config := p2p.GenerateTLSConfig()
 	listener, err := tls.Listen("tcp", n.Addr, config)
 	if err != nil {
 		log.Fatalf("Failed to start TLS listener: %v", err)
@@ -90,7 +108,7 @@ func (n *Node) handleSecureConnection(conn *tls.Conn) {
 }
 func (n *Node) handleConsensusMessage(msg *gossip.ConsensusMessage) {
 	// Передача сообщений консенсуса в модуль BFT
-	bftHandler := bft.NewBFTMessageHandler(n.PeerMgr)
+	bftHandler := NewBFTMessageHandler(n.PeerMgr)
 	bftHandler.ProcessMessage(msg)
 }
 

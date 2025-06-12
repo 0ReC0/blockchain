@@ -1,9 +1,7 @@
 package p2p
 
 import (
-	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"time"
 )
 
@@ -33,23 +31,4 @@ func DeserializeHandshake(data []byte) (*Handshake, error) {
 		return nil, err
 	}
 	return &h, nil
-}
-
-func (n *Node) PerformHandshake(conn *tls.Conn) error {
-	hs := NewHandshake(n.ID)
-	data, _ := hs.Serialize()
-	_, err := conn.Write(data)
-	if err != nil {
-		return err
-	}
-
-	// Read response
-	buf := make([]byte, 1024)
-	bytesRead, err := conn.Read(buf)
-	remoteHS, err := DeserializeHandshake(buf[:bytesRead])
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Handshake with %s successful\n", remoteHS.NodeID)
-	return nil
 }

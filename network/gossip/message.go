@@ -21,7 +21,7 @@ const (
 	MsgPrecommit MessageType = "precommit"
 )
 
-type Message struct {
+type GossipMessage struct {
 	Type MessageType
 	From string
 	Data []byte

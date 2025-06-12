@@ -21,7 +21,7 @@ func NewOptimisticRollup(chain *blockchain.Blockchain, bftNode *bft.BFTNode) *Op
 
 func (r *OptimisticRollup) SubmitBatch(transactions []string) error {
 	// Преобразуем transactions в формат, понятный gossip
-	msg := &gossip.Message{
+	msg := &gossip.GossipMessage{
 		Type: gossip.MsgTx,
 		From: r.BFT.Address,
 		Data: []byte(transactions[0]), // упрощённый пример

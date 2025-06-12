@@ -14,22 +14,22 @@ import (
 	"blockchain/network/peer"
 )
 
-func (m *Message) Encode() ([]byte, error) {
+func (m *GossipMessage) Encode() ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	err := enc.Encode(m)
 	return buf.Bytes(), err
 }
 
-func DecodeMessage(data []byte) (*Message, error) {
+func DecodeMessage(data []byte) (*GossipMessage, error) {
 	buf := bytes.NewBuffer(data)
 	dec := gob.NewDecoder(buf)
-	var msg Message
+	var msg GossipMessage
 	err := dec.Decode(&msg)
 	return &msg, err
 }
 
-func Broadcast(peers []*peer.Peer, msg *Message) error {
+func Broadcast(peers []*peer.Peer, msg *GossipMessage) error {
 	for _, peer := range peers {
 		conn, err := net.Dial("tcp", peer.Addr)
 		if err != nil {
