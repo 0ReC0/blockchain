@@ -14,6 +14,7 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -45,19 +46,6 @@ func (t *Transaction) Serialize() []byte {
 	return data
 }
 
-type RegisterRequest struct {
-	Address string `json:"address"`
-	PubKey  string `json:"pubKey"`
-}
-
-func GenerateSecureToken(n int) string {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return ""
-	}
-	return base64.URLEncoding.EncodeToString(b)
-}
-
 // =================== Генерация ключей ===================
 
 func GenerateKeys() (string, string, error) {
@@ -68,17 +56,15 @@ func GenerateKeys() (string, string, error) {
 
 	pubKey := &privKey.PublicKey
 
-	// ❌ Используем несжатый формат (04 + X + Y)
+	// Используем несжатый формат (04 + X + Y)
 	xBytes := pubKey.X.Bytes()
 	yBytes := pubKey.Y.Bytes()
 
-	// Делаем длину X и Y равной 32 байтам (для curve P-256)
 	xBytesPadded := make([]byte, 32)
 	yBytesPadded := make([]byte, 32)
 	copy(xBytesPadded[32-len(xBytes):], xBytes)
 	copy(yBytesPadded[32-len(yBytes):], yBytes)
 
-	// Формат: 04 || X || Y
 	pubKeyBytesUncompressed := append([]byte{0x04}, append(xBytesPadded, yBytesPadded...)...)
 
 	return hex.EncodeToString(privKey.D.Bytes()), hex.EncodeToString(pubKeyBytesUncompressed), nil
@@ -125,7 +111,13 @@ func SendTransaction(tx *Transaction) error {
 	fmt.Printf("📡 Response: %d\n%s\n", resp.StatusCode, string(bodyBytes))
 	return nil
 }
+
 func RegisterPublicKey(address, pubKey string) error {
+	type RegisterRequest struct {
+		Address string `json:"address"`
+		PubKey  string `json:"pubKey"`
+	}
+
 	url := "http://localhost:8081/register"
 
 	requestBody := RegisterRequest{
@@ -149,47 +141,111 @@ func RegisterPublicKey(address, pubKey string) error {
 	return nil
 }
 
+// =================== Генерация ID ===================
+
+func GenerateSecureToken(n int) string {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	return base64.URLEncoding.EncodeToString(b)
+}
+
+// =================== HTML UI ===================
+
 // =================== Main ===================
 
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next(w, r)
+	}
+}
+
 func main() {
-	// 1. Генерируем ключи
-	privKey, pubKey, err := GenerateKeys()
-	if err != nil {
-		panic(err)
-	}
+	// Запускаем веб-сервер
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "index.html")
+	})
 
-	fmt.Printf("🔐 Private Key: %s\n", privKey)
-	fmt.Printf("📘 Public Key:  %s\n", pubKey)
+	http.HandleFunc("/addtx", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("📬 /addtx вызван")
 
-	// 2. Регистрируем публичный ключ в блокчейне
-	err = RegisterPublicKey("A", pubKey)
-	if err != nil {
-		panic(err)
-	}
+		if r.Method != http.MethodPost {
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+			return
+		}
 
-	// 3. Создаем транзакцию
-	tx := &Transaction{
-		ID:        GenerateSecureToken(32),
-		From:      "A",
-		To:        "validator2",
-		Amount:    10.0,
-		Timestamp: time.Now().Unix(),
-		IsPrivate: false,
-	}
+		// Получаем данные из формы
+		var txData struct {
+			From      string `json:"From"`
+			To        string `json:"To"`
+			Amount    string `json:"Amount"`
+			IsPrivate string `json:"IsPrivate"`
+		}
 
-	// 4. Подписываем
-	sig, err := SignTransaction(tx, privKey)
-	if err != nil {
-		panic(err)
-	}
-	tx.Signature = sig
+		if err := json.NewDecoder(r.Body).Decode(&txData); err != nil {
+			http.Error(w, "Ошибка парсинга данных", http.StatusBadRequest)
+			return
+		}
 
-	// 5. Выводим JSON
-	jsonTx, _ := json.MarshalIndent(tx, "", "  ")
-	fmt.Printf("\n📤 Transaction JSON:\n%s\n", string(jsonTx))
+		amount, err := strconv.ParseFloat(txData.Amount, 64)
+		if err != nil {
+			amount = 10.0
+		}
 
-	// 6. Отправляем
-	err = SendTransaction(tx)
+		isPrivate := txData.IsPrivate == "true"
+
+		// Генерируем ключи
+		privKey, pubKey, err := GenerateKeys()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Регистрируем публичный ключ
+		if err := RegisterPublicKey(txData.From, pubKey); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Создаем транзакцию
+		tx := &Transaction{
+			ID:        GenerateSecureToken(32),
+			From:      txData.From,
+			To:        txData.To,
+			Amount:    amount,
+			Timestamp: time.Now().Unix(),
+			IsPrivate: isPrivate,
+		}
+
+		// Подписываем
+		sig, err := SignTransaction(tx, privKey)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		tx.Signature = sig
+
+		// Отправляем
+		if err := SendTransaction(tx); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Ответ
+		fmt.Fprintf(w, "✅ Транзакция отправлена: %s\n", tx.ID)
+	}))
+
+	fmt.Println("🌍 Веб-интерфейс доступен на http://localhost:8000")
+	fmt.Println("🔗 Отправка тестовой транзакции: http://localhost:8000/sendtx")
+	err := http.ListenAndServe(":8000", nil)
 	if err != nil {
 		panic(err)
 	}
