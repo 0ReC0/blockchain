@@ -1,6 +1,7 @@
 package txpool
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -53,11 +54,15 @@ func (t *Transaction) Verify() bool {
 		fmt.Printf("Public key not found for %s: %v\n", t.From, err)
 		return false
 	}
+	sigBytes, err := hex.DecodeString(t.Signature)
+	fmt.Printf("Raw signature (hex): %x\n", sigBytes)
+	fmt.Printf("Raw data (hex): %x\n", t.Serialize())
+	if err != nil {
+		fmt.Printf("❌ Failed to decode signature hex: %v\n", err)
+		return false
+	}
 
-	fmt.Printf("Raw signature (hex): %x\n", []byte(t.Signature))
-
-	// 2. Проверяем подпись
-	if !signature.Verify(pubKey, t.Serialize(), []byte(t.Signature)) {
+	if !signature.Verify(pubKey, t.Serialize(), sigBytes) {
 		fmt.Printf("Signature verification failed for transaction %s\n", t.ID)
 		return false
 	}

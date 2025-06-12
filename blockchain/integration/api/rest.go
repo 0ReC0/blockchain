@@ -1,10 +1,13 @@
 package api
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"blockchain/contracts/execution"
+	"blockchain/crypto/signature"
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
 )
@@ -25,6 +28,7 @@ func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool) 
 
 func (s *APIServer) Start(addr string) error {
 	http.HandleFunc("/blocks", s.handleBlocks)
+	http.HandleFunc("/register", s.handleRegisterPublicKey)
 	http.HandleFunc("/transactions", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
@@ -116,4 +120,37 @@ func (s *APIServer) handleAddTransaction(w http.ResponseWriter, r *http.Request)
 		"status":      "success",
 		"transaction": tx.ID,
 	})
+}
+
+// handleRegisterPublicKey обрабатывает POST /register
+func (s *APIServer) handleRegisterPublicKey(w http.ResponseWriter, r *http.Request) {
+	type RegisterRequest struct {
+		Address string `json:"address"`
+		PubKey  string `json:"pubKey"`
+	}
+
+	var req RegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	pubKeyBytes, err := hex.DecodeString(req.PubKey)
+	if err != nil {
+		http.Error(w, "Invalid public key format", http.StatusBadRequest)
+		return
+	}
+
+	pubKey, err := signature.ParsePublicKey(pubKeyBytes)
+	if err != nil {
+		http.Error(w, "Failed to parse public key", http.StatusBadRequest)
+		return
+	}
+
+	// Сохраняем в реестр
+	signature.RegisterPublicKey(req.Address, pubKey)
+
+	fmt.Printf("🔑 Public key registered for %s\n", req.Address)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Public key registered for %s", req.Address)
 }

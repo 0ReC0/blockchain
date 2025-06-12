@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -80,7 +81,7 @@ func main() {
 	if err != nil {
 		panic("Failed to sign transaction: " + err.Error())
 	}
-	tx1.Signature = string(signatureBytes)
+	tx1.Signature = hex.EncodeToString(signatureBytes)
 
 	// 6. Добавляем в пул
 	txPool.AddTransaction(tx1)

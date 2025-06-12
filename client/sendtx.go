@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/asn1"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -27,8 +28,25 @@ type Transaction struct {
 	IsPrivate bool    `json:"IsPrivate"`
 }
 
-func (tx *Transaction) String() string {
-	return fmt.Sprintf("%s%s%s%f%d", tx.ID, tx.From, tx.To, tx.Amount, tx.Timestamp)
+func (t *Transaction) Serialize() []byte {
+	temp := struct {
+		From      string
+		To        string
+		Amount    float64
+		Timestamp int64
+	}{
+		From:      t.From,
+		To:        t.To,
+		Amount:    t.Amount,
+		Timestamp: t.Timestamp,
+	}
+	data, _ := json.Marshal(temp)
+	return data
+}
+
+type RegisterRequest struct {
+	Address string `json:"address"`
+	PubKey  string `json:"pubKey"`
 }
 
 // =================== Генерация ключей ===================
@@ -40,23 +58,32 @@ func GenerateKeys() (string, string, error) {
 	}
 
 	pubKey := &privKey.PublicKey
-	pubKeyBytes := elliptic.MarshalCompressed(pubKey, pubKey.X, pubKey.Y)
 
-	return hex.EncodeToString(privKey.D.Bytes()), hex.EncodeToString(pubKeyBytes), nil
+	// ❌ Используем несжатый формат (04 + X + Y)
+	xBytes := pubKey.X.Bytes()
+	yBytes := pubKey.Y.Bytes()
+
+	// Делаем длину X и Y равной 32 байтам (для curve P-256)
+	xBytesPadded := make([]byte, 32)
+	yBytesPadded := make([]byte, 32)
+	copy(xBytesPadded[32-len(xBytes):], xBytes)
+	copy(yBytesPadded[32-len(yBytes):], yBytes)
+
+	// Формат: 04 || X || Y
+	pubKeyBytesUncompressed := append([]byte{0x04}, append(xBytesPadded, yBytesPadded...)...)
+
+	return hex.EncodeToString(privKey.D.Bytes()), hex.EncodeToString(pubKeyBytesUncompressed), nil
 }
 
 // =================== Подпись ===================
 
 func CalculateTxHash(tx *Transaction) []byte {
-	hash := sha256.Sum256([]byte(tx.String()))
+	hash := sha256.Sum256(tx.Serialize())
 	return hash[:]
 }
 
 func SignTransaction(tx *Transaction, privKeyHex string) (string, error) {
-	privKeyBytes, err := hex.DecodeString(privKeyHex)
-	if err != nil {
-		return "", err
-	}
+	privKeyBytes, _ := hex.DecodeString(privKeyHex)
 
 	privKey := new(ecdsa.PrivateKey)
 	privKey.Curve = elliptic.P256()
@@ -64,67 +91,13 @@ func SignTransaction(tx *Transaction, privKeyHex string) (string, error) {
 	privKey.PublicKey.X, privKey.PublicKey.Y = elliptic.P256().ScalarBaseMult(privKeyBytes)
 
 	hash := CalculateTxHash(tx)
-	r, s, err := ecdsa.Sign(rand.Reader, privKey, hash)
-	if err != nil {
-		return "", err
-	}
+	r, s, _ := ecdsa.Sign(rand.Reader, privKey, hash)
 
-	// 🔐 Ручная кодировка DER
-	sig, err := MarshalECDSASignature(r, s)
-	if err != nil {
-		return "", err
-	}
+	sig, _ := asn1.Marshal(struct {
+		R, S *big.Int
+	}{R: r, S: s})
 
 	return hex.EncodeToString(sig), nil
-}
-func MarshalECDSASignature(r, s *big.Int) ([]byte, error) {
-	rBytes := r.Bytes()
-	sBytes := s.Bytes()
-
-	// Подготавливаем байты с учетом ASN.1 INTEGER
-	// Если старший бит установлен, добавляем префикс 0x00
-	rPrefix := 0
-	if len(rBytes) > 0 && rBytes[0] >= 0x80 {
-		rPrefix = 1
-	}
-
-	sPrefix := 0
-	if len(sBytes) > 0 && sBytes[0] >= 0x80 {
-		sPrefix = 1
-	}
-
-	// Вычисляем длину
-	length := 6 + len(rBytes) + len(sBytes) + rPrefix + sPrefix
-
-	// Создаем буфер
-	sig := make([]byte, length)
-
-	// ASN.1 SEQUENCE
-	sig[0] = 0x30
-	sig[1] = byte(length - 2) // Длина последовательности
-
-	// r
-	sig[2] = 0x02
-	sig[3] = byte(len(rBytes) + rPrefix)
-	if rPrefix == 1 {
-		sig[4] = 0x00
-		copy(sig[5:], rBytes)
-	} else {
-		copy(sig[4:], rBytes)
-	}
-
-	// s
-	offset := 4 + len(rBytes) + rPrefix
-	sig[offset] = 0x02
-	sig[offset+1] = byte(len(sBytes) + sPrefix)
-	if sPrefix == 1 {
-		sig[offset+2] = 0x00
-		copy(sig[offset+3:], sBytes)
-	} else {
-		copy(sig[offset+2:], sBytes)
-	}
-
-	return sig, nil
 }
 
 // =================== Отправка на API ===================
@@ -143,6 +116,29 @@ func SendTransaction(tx *Transaction) error {
 	fmt.Printf("📡 Response: %d\n%s\n", resp.StatusCode, string(bodyBytes))
 	return nil
 }
+func RegisterPublicKey(address, pubKey string) error {
+	url := "http://localhost:8081/register"
+
+	requestBody := RegisterRequest{
+		Address: address,
+		PubKey:  pubKey,
+	}
+
+	body, _ := json.Marshal(requestBody)
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("registration failed: %d\n%s", resp.StatusCode, string(bodyBytes))
+	}
+
+	fmt.Printf("✅ Public key registered. Response: %d\n", resp.StatusCode)
+	return nil
+}
 
 // =================== Main ===================
 
@@ -156,28 +152,34 @@ func main() {
 	fmt.Printf("🔐 Private Key: %s\n", privKey)
 	fmt.Printf("📘 Public Key:  %s\n", pubKey)
 
-	// 2. Создаем транзакцию
+	// 2. Регистрируем публичный ключ в блокчейне
+	err = RegisterPublicKey("A", pubKey)
+	if err != nil {
+		panic(err)
+	}
+
+	// 3. Создаем транзакцию
 	tx := &Transaction{
 		ID:        "tx_001",
 		From:      "A",
 		To:        "validator2",
-		Amount:    50.0,
+		Amount:    10.0,
 		Timestamp: time.Now().Unix(),
 		IsPrivate: false,
 	}
 
-	// 3. Подписываем
+	// 4. Подписываем
 	sig, err := SignTransaction(tx, privKey)
 	if err != nil {
 		panic(err)
 	}
 	tx.Signature = sig
 
-	// 4. Выводим JSON
+	// 5. Выводим JSON
 	jsonTx, _ := json.MarshalIndent(tx, "", "  ")
 	fmt.Printf("\n📤 Transaction JSON:\n%s\n", string(jsonTx))
 
-	// 5. Отправляем
+	// 6. Отправляем
 	err = SendTransaction(tx)
 	if err != nil {
 		panic(err)
