@@ -174,6 +174,9 @@ func (n *BFTNode) RunConsensusRound() {
 
 	time.Sleep(1 * time.Second)
 
+	fmt.Printf("📬 Precommits received: %d\n", len(round.Precommits))
+	fmt.Printf("📬 ProposedBlock is nil? %v\n", round.ProposedBlock == nil)
+
 	// 4. Commit
 	if len(round.Precommits) >= 2 {
 		if round.ProposedBlock != nil {

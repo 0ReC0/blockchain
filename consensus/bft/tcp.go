@@ -21,13 +21,13 @@ type TcpMessage struct {
 
 // StartTCPServer — запускает TCP-сервер для BFT-нод
 func StartTCPServer(bftNode *BFTNode) {
-	listener, err := net.Listen("tcp", bftNode.Address)
+	config := p2p.GenerateTLSConfig()
+	listener, err := tls.Listen("tcp", bftNode.Address, config)
 	if err != nil {
 		fmt.Printf("❌ Failed to start TCP server on %s: %v\n", bftNode.Address, err)
 		return
 	}
 	defer listener.Close()
-
 	fmt.Printf("📡 BFT Node listening on %s\n", bftNode.Address)
 
 	for {
@@ -44,15 +44,28 @@ func StartTCPServer(bftNode *BFTNode) {
 func handleConnection(conn net.Conn, bftNode *BFTNode) {
 	defer conn.Close()
 
-	decoder := json.NewDecoder(conn)
-	var msg TcpMessage
+	// Оборачиваем в TLS
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		fmt.Println("❌ Connection is not a TLS connection")
+		return
+	}
 
+	// Убедимся, что рукопожатие прошло
+	if err := tlsConn.Handshake(); err != nil {
+		fmt.Printf("❌ TLS handshake failed: %v\n", err)
+		return
+	}
+
+	// Декодируем сообщение
+	decoder := json.NewDecoder(tlsConn)
+	var msg gossip.SignedConsensusMessage
 	if err := decoder.Decode(&msg); err != nil {
 		fmt.Printf("❌ Failed to decode message: %v\n", err)
 		return
 	}
 
-	// Получаем текущий раунд (пример реализации — нужно адаптировать под вашу структуру)
+	// Получаем текущий раунд
 	round := bftNode.CurrentRound
 
 	switch msg.Type {

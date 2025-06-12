@@ -56,13 +56,8 @@ func BroadcastSignedConsensusMessage(peers []*peer.Peer, msg *SignedConsensusMes
 		}
 		defer conn.Close()
 
-		encoded, err := json.Marshal(msg)
-		if err != nil {
-			return err
-		}
-
-		_, err = conn.Write(encoded)
-		if err != nil {
+		encoder := json.NewEncoder(conn)
+		if err := encoder.Encode(msg); err != nil {
 			return err
 		}
 	}
