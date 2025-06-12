@@ -10,7 +10,7 @@ import (
 
 // Message — тип сообщения между BFT-нодами
 type TcpMessage struct {
-	Type      string
+	Type      ConsensusState
 	From      string
 	Data      []byte
 	Timestamp int64
@@ -50,10 +50,10 @@ func handleConnection(conn net.Conn, bftNode *BFTNode) {
 	}
 
 	// Получаем текущий раунд (пример реализации — нужно адаптировать под вашу структуру)
-	round := getCurrentRound(bftNode)
+	round := bftNode.CurrentRound
 
 	switch msg.Type {
-	case "proposal":
+	case StatePropose:
 		block := &blockchain.Block{}
 		if err := block.Deserialize(msg.Data); err != nil {
 			fmt.Printf("❌ Failed to deserialize block: %v\n", err)
@@ -62,11 +62,11 @@ func handleConnection(conn net.Conn, bftNode *BFTNode) {
 		round.ProposedBlock = msg.Data
 		fmt.Printf("📬 Received proposal from %s\n", msg.From)
 
-	case "prevote":
+	case StatePrevote:
 		round.Prevotes[msg.From] = msg.Data
 		fmt.Printf("📬 Received prevote from %s\n", msg.From)
 
-	case "precommit":
+	case StatePrecommit:
 		round.Precommits[msg.From] = msg.Data
 		fmt.Printf("📬 Received precommit from %s\n", msg.From)
 
@@ -74,21 +74,12 @@ func handleConnection(conn net.Conn, bftNode *BFTNode) {
 		fmt.Printf("⚠️ Unknown message type: %s\n", msg.Type)
 	}
 }
-func getCurrentRound(bftNode *BFTNode) *Round {
-	// Пример — замените на вашу реальную логику
-	return &Round{
-		Height:      bftNode.Height,
-		Round: bftNode.Round,
-		Prevotes:    make(map[string][]byte),
-		Precommits:  make(map[string][]byte),
-	}
-}
 
 // BroadcastMessage — отправка сообщения всем пеерам
-func BroadcastMessage(bftNode *BFTNode, msgType string, data []byte) {
+func BroadcastMessage(bftNode *BFTNode, msgType ConsensusState, data []byte) {
 	msg := TcpMessage{
 		Type:      msgType,
-		From:      bftNode.ID,
+		From:      bftNode.Address,
 		Data:      data,
 		Timestamp: time.Now().UnixNano(),
 	}

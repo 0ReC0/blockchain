@@ -24,6 +24,7 @@ type BFTNode struct {
 	TxPool        *txpool.TransactionPool
 	Chain         *blockchain.Blockchain
 	Signer        signature.Signer
+	CurrentRound  *Round
 }
 
 // NewBFTNode создаёт новый экземпляр BFTNode
@@ -84,6 +85,7 @@ func (n *BFTNode) RunConsensusRound() {
 	}
 
 	round := NewRound(n.Height, n.Round, proposer.Address)
+	n.CurrentRound = round
 
 	fmt.Printf("Starting round %d for height %d. Proposer: %s\n", n.Round, n.Height, proposer.Address)
 
@@ -213,5 +215,5 @@ func (n *BFTNode) RunConsensusRound() {
 
 func (n *BFTNode) BroadcastSignedMessage(msgType ConsensusState, data, signature []byte) {
 	// Используем нашу TCP-логику
-	BroadcastMessage(n, string(msgType), data)
+	BroadcastMessage(n, msgType, data)
 }
