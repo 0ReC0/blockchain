@@ -32,7 +32,21 @@ func NewTransaction(from, to string, amount float64) *Transaction {
 }
 
 func (t *Transaction) Serialize() []byte {
-	data, _ := json.Marshal(t)
+	// Не сериализуем поля, которые не должны влиять на подпись
+	temp := struct {
+		From      string
+		To        string
+		Amount    float64
+		Timestamp int64
+		IsPrivate bool
+	}{
+		From:      t.From,
+		To:        t.To,
+		Amount:    t.Amount,
+		Timestamp: t.Timestamp,
+		IsPrivate: t.IsPrivate,
+	}
+	data, _ := json.Marshal(temp)
 	return data
 }
 func (t *Transaction) Verify() bool {
