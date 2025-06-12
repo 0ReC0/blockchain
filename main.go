@@ -42,10 +42,6 @@ func main() {
 	chain := blockchain.NewBlockchain()
 	txPool := txpool.NewTransactionPool()
 
-	// ============ Инициализация тестовой транзакции ============
-	tx1 := txpool.NewTransaction("A", "B", 10)
-	txPool.AddTransaction(tx1)
-
 	// ============ Инициализация валидаторов ============
 	validators := []*pos.Validator{
 		pos.NewValidator("validator1", 2000),
@@ -58,6 +54,31 @@ func main() {
 	if err != nil {
 		panic("❌ Failed to create signer: " + err.Error())
 	}
+	// ============ Инициализация тестовой транзакции ============
+	// Регистрация публичного ключа
+	// 2. Получаем публичный ключ в виде []byte
+	pubKeyBytes := signer.PublicKey()
+
+	// 3. Десериализуем его в *ecdsa.PublicKey
+	pubKey, err := signature.ParsePublicKey(pubKeyBytes)
+	if err != nil {
+		panic("Failed to parse public key: " + err.Error())
+	}
+
+	// 4. Регистрируем публичный ключ
+	signature.RegisterPublicKey("A", pubKey)
+
+	// 5. Создаём и подписываем транзакцию
+	tx1 := txpool.NewTransaction("A", "B", 10)
+	txBytes := tx1.Serialize()
+	signatureBytes, err := signer.Sign(txBytes)
+	if err != nil {
+		panic("Failed to sign transaction: " + err.Error())
+	}
+	tx1.Signature = string(signatureBytes)
+
+	// 6. Добавляем в пул
+	txPool.AddTransaction(tx1)
 
 	// ============ Инициализация BFT-ноды ============
 	bftNode := bft.NewBFTNode(

@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"math/big"
 )
 
@@ -56,4 +57,23 @@ func (e *ECDSASigner) PrivateKey() []byte {
 
 func (e *ECDSASigner) PublicKey() []byte {
 	return elliptic.Marshal(elliptic.P256(), e.publicKey.X, e.publicKey.Y)
+}
+
+func ParsePublicKey(data []byte) (*ecdsa.PublicKey, error) {
+	if len(data) != 65 {
+		return nil, fmt.Errorf("invalid public key length: expected 65 bytes, got %d", len(data))
+	}
+
+	if data[0] != 0x04 {
+		return nil, fmt.Errorf("invalid public key format: expected uncompressed format (0x04)")
+	}
+
+	x := new(big.Int).SetBytes(data[1:33])
+	y := new(big.Int).SetBytes(data[33:65])
+
+	return &ecdsa.PublicKey{
+		Curve: elliptic.P256(),
+		X:     x,
+		Y:     y,
+	}, nil
 }
