@@ -7,7 +7,6 @@ import (
 
 	// Уровень консенсуса
 	"blockchain/consensus/bft"
-	"blockchain/consensus/manager"
 	"blockchain/consensus/pos"
 
 	// Сеть
@@ -43,9 +42,15 @@ func main() {
 	txPool := txpool.NewTransactionPool()
 
 	// ============ Инициализация валидаторов ============
+	// Список всех пиров
+	peerAddresses := []string{
+		"localhost:26656", // validator1
+		"localhost:26657", // validator2
+	}
+
 	validators := []*pos.Validator{
-		pos.NewValidator("validator1", 2000),
-		pos.NewValidator("validator2", 1000),
+		pos.NewValidatorWithAddress("validator1", peerAddresses[0], 2000),
+		pos.NewValidatorWithAddress("validator2", peerAddresses[1], 1000),
 	}
 	validatorPool := pos.NewValidatorPool(validators)
 
@@ -81,15 +86,6 @@ func main() {
 	txPool.AddTransaction(tx1)
 
 	// ============ Инициализация BFT-ноды ============
-	// Адрес текущей ноды
-	selfAddress := "localhost:26656"
-
-	// Список всех пиров
-	peerAddresses := []string{
-		"localhost:26656", // validator1
-		"localhost:26657", // validator2
-	}
-
 	// Создаём BFT-ноду с адресом и пеерами
 	bftNode := bft.NewBFTNode(
 		"validator1",
@@ -98,25 +94,35 @@ func main() {
 		txPool,
 		chain,
 		signer,
-		selfAddress,
+		peerAddresses[0],
+		peerAddresses,
+	)
+	bftNode2 := bft.NewBFTNode(
+		"validator2",
+		validators[1],
+		*validatorPool,
+		txPool,
+		chain,
+		signer,
+		peerAddresses[1],
 		peerAddresses,
 	)
 
 	// ============ Инициализация ConsensusSwitcher ============
-	switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
+	// switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
 
 	// ============ Запуск консенсуса через ConsensusSwitcher ============
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		for {
-			<-ticker.C
-			switcher.StartConsensus()
-		}
-	}()
+	// go func() {
+	// 	ticker := time.NewTicker(10 * time.Second)
+	// 	for {
+	// 		<-ticker.C
+	// 		switcher.StartConsensus()
+	// 	}
+	// }()
 
 	// ============ Запуск P2P сети ============
-	go bft.StartNetwork(txPool)
-
+	go bft.StartTCPServer(bftNode)
+	go bft.StartTCPServer(bftNode2)
 	// ============ Запуск REST API ============
 	apiServer := api.NewAPIServer(chain, txPool)
 	go func() {
@@ -154,11 +160,19 @@ func main() {
 	_, _ = bankGateway.GetBalance("user123")
 
 	// ============ Запуск BFT-узла ============
+
+	// Запуск первой ноды
 	go func() {
-		time.Sleep(2 * time.Second) // даём время сети запуститься
+		time.Sleep(2 * time.Second)
 		bftNode.Start()
-		fmt.Println("✅ Blockchain system started. Waiting for connections...")
 	}()
+
+	// Запуск второй ноды
+	go func() {
+		time.Sleep(3 * time.Second)
+		bftNode2.Start()
+	}()
+	fmt.Println("✅ Blockchain system started. Waiting for connections...")
 
 	// ============ Бесконечный цикл для поддержания работы сервера ============
 	select {}

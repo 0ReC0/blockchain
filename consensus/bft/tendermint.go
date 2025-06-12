@@ -7,8 +7,6 @@ import (
 	"blockchain/consensus/pos"
 	"blockchain/crypto/signature"
 	"blockchain/governance/reputation"
-	"blockchain/network/gossip"
-	"blockchain/network/peer"
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
 )
@@ -213,27 +211,7 @@ func (n *BFTNode) RunConsensusRound() {
 	}
 }
 
-// BroadcastSignedMessage отправляет подписанное сообщение другим узлам
 func (n *BFTNode) BroadcastSignedMessage(msgType ConsensusState, data, signature []byte) {
-	msg := &gossip.SignedConsensusMessage{
-		Type:      gossip.MessageType(msgType),
-		Height:    n.Height,
-		Round:     n.Round,
-		From:      n.Address,
-		Data:      data,
-		Signature: signature,
-	}
-
-	// Преобразуем ValidatorPool в []*peer.Peer
-	var peers []*peer.Peer
-	for _, validator := range n.ValidatorPool {
-		peers = append(peers, &peer.Peer{
-			ID:   validator.Address,
-			Addr: "unknown", // можно улучшить, получая из реестра пиров
-		})
-	}
-
-	if err := gossip.BroadcastSignedConsensusMessage(peers, msg); err != nil {
-		fmt.Printf("Failed to broadcast message: %v\n", err)
-	}
+	// Используем нашу TCP-логику
+	BroadcastMessage(n, string(msgType), data)
 }
