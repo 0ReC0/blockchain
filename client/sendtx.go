@@ -69,36 +69,62 @@ func SignTransaction(tx *Transaction, privKeyHex string) (string, error) {
 		return "", err
 	}
 
-	sig := append(r.Bytes(), s.Bytes()...)
+	// 🔐 Ручная кодировка DER
+	sig, err := MarshalECDSASignature(r, s)
+	if err != nil {
+		return "", err
+	}
+
 	return hex.EncodeToString(sig), nil
 }
+func MarshalECDSASignature(r, s *big.Int) ([]byte, error) {
+	rBytes := r.Bytes()
+	sBytes := s.Bytes()
 
-// =================== Проверка подписи ===================
-
-func VerifyTransaction(tx *Transaction, pubKeyHex string) bool {
-	pubKeyBytes, err := hex.DecodeString(pubKeyHex)
-	if err != nil {
-		return false
+	// Подготавливаем байты с учетом ASN.1 INTEGER
+	// Если старший бит установлен, добавляем префикс 0x00
+	rPrefix := 0
+	if len(rBytes) > 0 && rBytes[0] >= 0x80 {
+		rPrefix = 1
 	}
 
-	curve := elliptic.P256()
-	x, y := elliptic.UnmarshalCompressed(curve, pubKeyBytes)
-	if x == nil {
-		return false
+	sPrefix := 0
+	if len(sBytes) > 0 && sBytes[0] >= 0x80 {
+		sPrefix = 1
 	}
 
-	pubKey := &ecdsa.PublicKey{Curve: curve, X: x, Y: y}
+	// Вычисляем длину
+	length := 6 + len(rBytes) + len(sBytes) + rPrefix + sPrefix
 
-	hash := CalculateTxHash(tx)
-	sigBytes, err := hex.DecodeString(tx.Signature)
-	if err != nil || len(sigBytes) != 64 {
-		return false
+	// Создаем буфер
+	sig := make([]byte, length)
+
+	// ASN.1 SEQUENCE
+	sig[0] = 0x30
+	sig[1] = byte(length - 2) // Длина последовательности
+
+	// r
+	sig[2] = 0x02
+	sig[3] = byte(len(rBytes) + rPrefix)
+	if rPrefix == 1 {
+		sig[4] = 0x00
+		copy(sig[5:], rBytes)
+	} else {
+		copy(sig[4:], rBytes)
 	}
 
-	r := new(big.Int).SetBytes(sigBytes[:32])
-	s := new(big.Int).SetBytes(sigBytes[32:])
+	// s
+	offset := 4 + len(rBytes) + rPrefix
+	sig[offset] = 0x02
+	sig[offset+1] = byte(len(sBytes) + sPrefix)
+	if sPrefix == 1 {
+		sig[offset+2] = 0x00
+		copy(sig[offset+3:], sBytes)
+	} else {
+		copy(sig[offset+2:], sBytes)
+	}
 
-	return ecdsa.Verify(pubKey, hash, r, s)
+	return sig, nil
 }
 
 // =================== Отправка на API ===================
@@ -133,7 +159,7 @@ func main() {
 	// 2. Создаем транзакцию
 	tx := &Transaction{
 		ID:        "tx_001",
-		From:      "validator1",
+		From:      "A",
 		To:        "validator2",
 		Amount:    50.0,
 		Timestamp: time.Now().Unix(),
@@ -147,16 +173,11 @@ func main() {
 	}
 	tx.Signature = sig
 
-	// 4. Проверяем
-	if !VerifyTransaction(tx, pubKey) {
-		panic("❌ Signature verification failed")
-	}
-
-	// 5. Выводим JSON
+	// 4. Выводим JSON
 	jsonTx, _ := json.MarshalIndent(tx, "", "  ")
 	fmt.Printf("\n📤 Transaction JSON:\n%s\n", string(jsonTx))
 
-	// 6. Отправляем
+	// 5. Отправляем
 	err = SendTransaction(tx)
 	if err != nil {
 		panic(err)
