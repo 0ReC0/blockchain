@@ -3,7 +3,7 @@ package peer
 import (
 	"fmt"
 
-	"../../security/sybil"
+	"blockchain/security/sybil"
 )
 
 // управление пирингом

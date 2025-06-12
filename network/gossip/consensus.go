@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"../../crypto/signature"
-	"../../network/p2p"
-	"../peer"
+	"blockchain/crypto/signature"
+	"blockchain/network/p2p"
+	"blockchain/network/peer"
 )
 
 type ConsensusMessage struct {

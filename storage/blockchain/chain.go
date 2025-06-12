@@ -3,7 +3,7 @@ package blockchain
 import (
 	"fmt"
 
-	txpool "../txpool"
+	"blockchain/storage/txpool"
 )
 
 type Blockchain struct {

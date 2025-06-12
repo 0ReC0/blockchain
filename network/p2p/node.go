@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log"
 
-	"../../consensus/bft"
-	"../gossip"
-	"../peer"
+	"blockchain/consensus/bft"
+	"blockchain/network/gossip"
+	"blockchain/network/peer"
 )
 
 type Node struct {

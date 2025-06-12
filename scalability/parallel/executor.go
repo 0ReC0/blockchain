@@ -3,8 +3,8 @@ package parallel
 import (
 	"sync"
 
-	"../../storage/blockchain"
-	"../../storage/txpool"
+	"blockchain/storage/blockchain"
+	"blockchain/storage/txpool"
 )
 
 type ParallelExecutor struct {

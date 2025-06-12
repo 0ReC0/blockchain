@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	"../../consensus/pos"
-	"../../crypto/signature"
-	"../../governance/reputation"
-	"../../network/gossip"
-	"../../network/peer"
-	"../../storage/blockchain"
-	"../../storage/txpool"
+	"blockchain/consensus/pos"
+	"blockchain/crypto/signature"
+	"blockchain/governance/reputation"
+	"blockchain/network/gossip"
+	"blockchain/network/peer"
+	"blockchain/storage/blockchain"
+	"blockchain/storage/txpool"
 )
 
 // BFTNode — узел, участвующий в консенсусе Tendermint

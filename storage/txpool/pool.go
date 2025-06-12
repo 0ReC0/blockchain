@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"../../security/double_spend"
+	"blockchain/security/double_spend"
 )
 
 type TransactionPool struct {

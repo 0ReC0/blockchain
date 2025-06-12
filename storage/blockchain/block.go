@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	txpool "../txpool"
+	"blockchain/storage/txpool"
 )
 
 type Block struct {

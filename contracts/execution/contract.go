@@ -3,7 +3,7 @@ package execution
 import (
 	"fmt"
 
-	"../token/erc20"
+	"blockchain/contracts/token/erc20"
 )
 
 type Contract interface {

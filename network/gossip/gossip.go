@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"net"
 
-	"../p2p"
-	"../peer"
+	"blockchain/network/p2p"
+	"blockchain/network/peer"
 )
 
 func (m *Message) Encode() ([]byte, error) {

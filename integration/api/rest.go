@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"../../contracts/execution"
-	"../../storage/blockchain"
-	"../../storage/txpool"
+	"blockchain/contracts/execution"
+	"blockchain/storage/blockchain"
+	"blockchain/storage/txpool"
 )
 
 type APIServer struct {

@@ -1,8 +1,8 @@
 package bft
 
 import (
-	"../../governance/reputation"
-	"../pos"
+	"blockchain/governance/reputation"
+	"blockchain/consensus/pos"
 )
 
 type BFTValidator struct {

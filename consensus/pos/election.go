@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"../../governance/reputation"
+	"blockchain/governance/reputation"
 )
 
 type ValidatorPool []*Validator

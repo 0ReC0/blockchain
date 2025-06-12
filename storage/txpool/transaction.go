@@ -5,8 +5,8 @@ import (
 	"math/big"
 	"time"
 
-	"../../crypto/signature"
-	"../../privacy/zkp"
+	"blockchain/crypto/signature"
+	"blockchain/privacy/zkp"
 )
 
 type Transaction struct {

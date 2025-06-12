@@ -1,8 +1,8 @@
 package parallel
 
 import (
-	"../../storage/blockchain"
-	"../../storage/txpool"
+	"blockchain/storage/blockchain"
+	"blockchain/storage/txpool"
 )
 
 type Scheduler struct {

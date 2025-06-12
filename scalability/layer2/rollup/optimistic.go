@@ -1,10 +1,10 @@
 package rollup
 
 import (
-	"../../../consensus/bft"
-	"../../../network/gossip"
-	"../../../network/peer"
-	"../../../storage/blockchain"
+	"blockchain/consensus/bft"
+	"blockchain/network/gossip"
+	"blockchain/network/peer"
+	"blockchain/storage/blockchain"
 )
 
 type OptimisticRollup struct {

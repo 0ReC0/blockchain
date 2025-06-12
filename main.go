@@ -6,35 +6,35 @@ import (
 	"time"
 
 	// Основные модули
-	"./consensus/bft"
-	"./consensus/manager"
-	"./consensus/pos"
-	"./network/p2p"
+	"blockchain/consensus/bft"
+	"blockchain/consensus/manager"
+	"blockchain/consensus/pos"
+	"blockchain/network/p2p"
 
 	// Уровень хранения
-	"./storage/blockchain"
-	"./storage/sharding"
-	"./storage/txpool"
+	"blockchain/storage/blockchain"
+	"blockchain/storage/sharding"
+	"blockchain/storage/txpool"
 
-	"./crypto/signature"
+	"blockchain/crypto/signature"
 
 	// Модули безопасности
-	"./security/double_spend"
+	"blockchain/security/double_spend"
 
 	// Модули масштабируемости
-	"./scalability/parallel"
+	"blockchain/scalability/parallel"
 
 	// Смарт-контракты
 
 	// Интеграция
-	"./integration/api"
-	"./integration/bank"
+	"blockchain/integration/api"
+	"blockchain/integration/bank"
 
 	// Говернанс
-	"./governance/reputation"
-	"./governance/upgrade"
-	"./governance/voting"
-	"./scalability/layer2/rollup"
+	"blockchain/governance/reputation"
+	"blockchain/governance/upgrade"
+	"blockchain/governance/voting"
+	"blockchain/scalability/layer2/rollup"
 )
 
 func main() {

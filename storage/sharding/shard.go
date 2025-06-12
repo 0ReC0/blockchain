@@ -3,8 +3,8 @@ package sharding
 import (
 	"sync"
 
-	blockchain "../blockchain"
-	txpool "../txpool"
+	"blockchain/storage/blockchain"
+	"blockchain/storage/txpool"
 )
 
 type Shard struct {

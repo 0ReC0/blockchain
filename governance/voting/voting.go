@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"../../consensus/manager"
+	"blockchain/consensus/manager"
 )
 
 func GenerateID() string {

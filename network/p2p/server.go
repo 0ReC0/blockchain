@@ -3,8 +3,8 @@ package p2p
 // запуск узла
 
 import (
-	gossip "../gossip"
-	peer "../peer"
+	"blockchain/network/gossip"
+	"blockchain/network/peer"
 )
 
 func StartNetwork() {

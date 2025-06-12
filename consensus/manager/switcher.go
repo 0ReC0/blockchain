@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"../../security/fiftyone"
+	"blockchain/security/fiftyone"
 )
 
 type ConsensusType string
