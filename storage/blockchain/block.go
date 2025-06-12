@@ -71,3 +71,31 @@ func (b *Block) Deserialize(data []byte) error {
 	dec := gob.NewDecoder(buf)
 	return dec.Decode(b)
 }
+
+type BlockWithoutSignature struct {
+	Index        int64
+	Timestamp    int64
+	PrevHash     string
+	Hash         string
+	Transactions []*txpool.Transaction
+	Validator    string
+	Nonce        string
+}
+
+func (b *Block) SerializeWithoutSignature() []byte {
+	temp := BlockWithoutSignature{
+		Index:        b.Index,
+		Timestamp:    b.Timestamp,
+		PrevHash:     b.PrevHash,
+		Hash:         b.Hash,
+		Transactions: b.Transactions,
+		Validator:    b.Validator,
+		Nonce:        b.Nonce,
+	}
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	if err := enc.Encode(temp); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}

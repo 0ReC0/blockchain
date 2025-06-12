@@ -127,7 +127,7 @@ func (n *BFTNode) RunConsensusRound() {
 		block.Hash = block.CalculateHash()
 
 		// Подписываем блок
-		signatureBytes, err := n.Signer.Sign(block.Serialize())
+		signatureBytes, err := n.Signer.Sign(block.SerializeWithoutSignature())
 		if err != nil {
 			fmt.Printf("Failed to sign block: %v\n", err)
 			return
@@ -208,12 +208,12 @@ func (n *BFTNode) RunConsensusRound() {
 
 			// Подписываем коммит
 
-			commitSig, err := n.Signer.Sign(block.Serialize())
+			commitSig, err := n.Signer.Sign(block.SerializeWithoutSignature())
 			if err != nil {
 				fmt.Printf("Failed to sign commit: %v\n", err)
 				return
 			}
-			n.BroadcastSignedMessage(gossip.StateCommit, block.Serialize(), commitSig)
+			n.BroadcastSignedMessage(gossip.StateCommit, block.SerializeWithoutSignature(), commitSig)
 			fmt.Printf("Block committed: %s\n", block.Hash)
 		}
 	}
