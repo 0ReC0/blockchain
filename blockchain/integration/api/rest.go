@@ -27,7 +27,7 @@ func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool) 
 }
 
 func (s *APIServer) Start(addr string) error {
-	http.HandleFunc("/blocks", s.handleBlocks)
+	http.HandleFunc("/blocks", enableCORS(s.handleBlocks))
 	http.HandleFunc("/register", s.handleRegisterPublicKey)
 	http.HandleFunc("/transactions", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -153,4 +153,19 @@ func (s *APIServer) handleRegisterPublicKey(w http.ResponseWriter, r *http.Reque
 	fmt.Printf("🔑 Public key registered for %s\n", req.Address)
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "Public key registered for %s", req.Address)
+}
+
+func enableCORS(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next(w, r)
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/asn1"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -47,6 +48,14 @@ func (t *Transaction) Serialize() []byte {
 type RegisterRequest struct {
 	Address string `json:"address"`
 	PubKey  string `json:"pubKey"`
+}
+
+func GenerateSecureToken(n int) string {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	return base64.URLEncoding.EncodeToString(b)
 }
 
 // =================== Генерация ключей ===================
@@ -160,7 +169,7 @@ func main() {
 
 	// 3. Создаем транзакцию
 	tx := &Transaction{
-		ID:        "tx_001",
+		ID:        GenerateSecureToken(32),
 		From:      "A",
 		To:        "validator2",
 		Amount:    10.0,
