@@ -5,13 +5,24 @@ package bft
 import (
 	"blockchain/network/gossip"
 	"blockchain/network/peer"
+	"blockchain/storage/blockchain"
+	"blockchain/storage/txpool"
 )
 
-func StartNetwork() {
-	node := NewNode("node1", ":3000")
-	node.PeerMgr.AddPeer(peer.NewPeer("peer1", ":3001"))
+func StartNetwork(txPool *txpool.TransactionPool) {
+	// Создаём блокчейн
+	chain := blockchain.NewBlockchain()
+
+	// Создаём узел с передачей всех необходимых аргументов
+	node := NewNode("node1", ":3000", txPool, chain)
+
+	// Добавляем пир
+	node.PeerMgr.AddPeer(peer.NewPeer("peer1", ":3001", nil))
+
+	// Запуск узла
 	node.Start()
 
+	// Запуск сетевых горутин
 	go peer.BroadcastPresence(node.Addr)
 	go peer.ListenForPeers()
 

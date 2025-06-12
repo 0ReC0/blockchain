@@ -103,7 +103,7 @@ func main() {
 	}()
 
 	// ============ Запуск P2P сети ============
-	go bft.StartNetwork()
+	go bft.StartNetwork(txPool)
 
 	// ============ Запуск REST API ============
 	apiServer := api.NewAPIServer(chain, txPool)

@@ -15,6 +15,8 @@ const (
 	MsgPing    MessageType = "ping"
 	MsgPong    MessageType = "pong"
 
+	MsgVote MessageType = "VOTE" // Добавьте это
+
 	// BFT сообщения
 	MsgPropose   MessageType = "propose"
 	MsgPrevote   MessageType = "prevote"

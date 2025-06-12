@@ -46,3 +46,9 @@ func (bc *Blockchain) GetBlockByNumber(blockNumber interface{}) *Block {
 	}
 	return nil
 }
+func (bc *Blockchain) GetLatestBlock() *Block {
+	if len(bc.Blocks) == 0 {
+		return nil
+	}
+	return bc.Blocks[len(bc.Blocks)-1]
+}

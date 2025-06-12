@@ -8,14 +8,17 @@ import (
 	"blockchain/crypto/signature"
 	"blockchain/network/p2p"
 	"blockchain/network/peer"
+	"blockchain/storage/blockchain"
 )
 
 type ConsensusMessage struct {
 	Type   MessageType
 	Height int64
 	Round  int64
-	From   string
-	Data   []byte
+	Block  *blockchain.Block // Добавляем поле для блока
+
+	From string
+	Data []byte
 }
 
 func (m *ConsensusMessage) Encode() ([]byte, error) {
