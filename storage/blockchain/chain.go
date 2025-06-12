@@ -40,7 +40,7 @@ func (bc *Blockchain) GetBlockByNumber(blockNumber interface{}) *Block {
 	}
 
 	for _, block := range bc.Blocks {
-		if block.Header.Number == num {
+		if block.Index == num {
 			return block
 		}
 	}
