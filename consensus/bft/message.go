@@ -2,17 +2,17 @@ package bft
 
 // типы сообщений BFT
 
-type MessageType string
+type ConsensusState string
 
 const (
-	MsgPropose   MessageType = "propose"
-	MsgPrevote   MessageType = "prevote"
-	MsgPrecommit MessageType = "precommit"
-	MsgCommit    MessageType = "commit"
+	StatePropose   ConsensusState = "propose"
+	StatePrevote   ConsensusState = "prevote"
+	StatePrecommit ConsensusState = "precommit"
+	StateCommit    ConsensusState = "commit"
 )
 
 type Message struct {
-	Type      MessageType
+	Type      ConsensusState
 	Height    int64
 	Round     int64
 	Proposer  string

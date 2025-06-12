@@ -6,7 +6,7 @@ package bft
 type Round struct {
 	Height        int64
 	Round         int64
-	Step          MessageType
+	Step          ConsensusState
 	Proposer      string
 	ProposedBlock []byte
 	Prevotes      map[string][]byte
@@ -17,7 +17,7 @@ func NewRound(height, round int64, proposer string) *Round {
 	return &Round{
 		Height:     height,
 		Round:      round,
-		Step:       MsgPropose,
+		Step:       StatePropose,
 		Proposer:   proposer,
 		Prevotes:   make(map[string][]byte),
 		Precommits: make(map[string][]byte),

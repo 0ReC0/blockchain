@@ -81,6 +81,16 @@ func main() {
 	txPool.AddTransaction(tx1)
 
 	// ============ Инициализация BFT-ноды ============
+	// Адрес текущей ноды
+	selfAddress := "localhost:26656"
+
+	// Список всех пиров
+	peerAddresses := []string{
+		"localhost:26656", // validator1
+		"localhost:26657", // validator2
+	}
+
+	// Создаём BFT-ноду с адресом и пеерами
 	bftNode := bft.NewBFTNode(
 		"validator1",
 		validators[0],
@@ -88,6 +98,8 @@ func main() {
 		txPool,
 		chain,
 		signer,
+		selfAddress,
+		peerAddresses,
 	)
 
 	// ============ Инициализация ConsensusSwitcher ============

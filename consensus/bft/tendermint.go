@@ -15,11 +15,14 @@ import (
 
 // BFTNode — узел, участвующий в консенсусе Tendermint
 type BFTNode struct {
+	ID            string
 	Address       string
 	Validator     *pos.Validator
 	ValidatorPool pos.ValidatorPool
+	Peers         []string
 	Height        int64
 	Round         int64
+	State         ConsensusState
 	TxPool        *txpool.TransactionPool
 	Chain         *blockchain.Blockchain
 	Signer        signature.Signer
@@ -27,19 +30,24 @@ type BFTNode struct {
 
 // NewBFTNode создаёт новый экземпляр BFTNode
 func NewBFTNode(
-	addr string,
-	val *pos.Validator,
+	id string,
+	validator *pos.Validator,
 	validatorPool pos.ValidatorPool,
 	txPool *txpool.TransactionPool,
 	chain *blockchain.Blockchain,
 	signer signature.Signer,
+	address string,
+	peers []string,
 ) *BFTNode {
 	return &BFTNode{
-		Address:       addr,
-		Validator:     val,
+		ID:            id,
+		Address:       address,
+		Validator:     validator,
 		ValidatorPool: validatorPool,
+		Peers:         peers,
 		Height:        0,
 		Round:         0,
+		State:         StatePropose,
 		TxPool:        txPool,
 		Chain:         chain,
 		Signer:        signer,
@@ -124,10 +132,10 @@ func (n *BFTNode) RunConsensusRound() {
 		block.Signature = signatureBytes
 
 		round.ProposedBlock = block.Serialize()
-		round.Step = MsgPropose
+		round.Step = StatePropose
 
 		// Отправляем предложение
-		n.BroadcastSignedMessage(MsgPropose, block.Serialize(), block.Signature)
+		n.BroadcastSignedMessage(StatePropose, block.Serialize(), block.Signature)
 		fmt.Printf("Proposed block %s with %d transactions\n", block.Hash, len(validTxs))
 	}
 
@@ -143,7 +151,7 @@ func (n *BFTNode) RunConsensusRound() {
 	}
 
 	round.Prevotes[n.Address] = prevoteSig
-	n.BroadcastSignedMessage(MsgPrevote, prevoteData, prevoteSig)
+	n.BroadcastSignedMessage(StatePrevote, prevoteData, prevoteSig)
 	fmt.Printf("Prevote from %s\n", n.Address)
 
 	time.Sleep(1 * time.Second)
@@ -158,7 +166,7 @@ func (n *BFTNode) RunConsensusRound() {
 	}
 
 	round.Precommits[n.Address] = precommitSig
-	n.BroadcastSignedMessage(MsgPrecommit, precommitData, precommitSig)
+	n.BroadcastSignedMessage(StatePrecommit, precommitData, precommitSig)
 	fmt.Printf("Precommit from %s\n", n.Address)
 
 	time.Sleep(1 * time.Second)
@@ -199,14 +207,14 @@ func (n *BFTNode) RunConsensusRound() {
 				fmt.Printf("Failed to sign commit: %v\n", err)
 				return
 			}
-			n.BroadcastSignedMessage(MsgCommit, block.Serialize(), commitSig)
+			n.BroadcastSignedMessage(StateCommit, block.Serialize(), commitSig)
 			fmt.Printf("Block committed: %s\n", block.Hash)
 		}
 	}
 }
 
 // BroadcastSignedMessage отправляет подписанное сообщение другим узлам
-func (n *BFTNode) BroadcastSignedMessage(msgType MessageType, data, signature []byte) {
+func (n *BFTNode) BroadcastSignedMessage(msgType ConsensusState, data, signature []byte) {
 	msg := &gossip.SignedConsensusMessage{
 		Type:      gossip.MessageType(msgType),
 		Height:    n.Height,
