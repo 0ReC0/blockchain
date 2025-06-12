@@ -54,6 +54,8 @@ func (t *Transaction) Verify() bool {
 		return false
 	}
 
+	fmt.Printf("Raw signature (hex): %x\n", []byte(t.Signature))
+
 	// 2. Проверяем подпись
 	if !signature.Verify(pubKey, t.Serialize(), []byte(t.Signature)) {
 		fmt.Printf("Signature verification failed for transaction %s\n", t.ID)
