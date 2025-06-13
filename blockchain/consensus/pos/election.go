@@ -16,27 +16,35 @@ func (p ValidatorPool) Select() *Validator {
 		return nil
 	}
 
-	// Использование репутации для выбора валидатора
 	repModule := reputation.NewReputationSystem()
 
-	// Обновляем репутацию перед выбором
-	for _, v := range p {
-		repModule.UpdateReputation(v.Address, 1.0)
+	totalWeight := 0.0
+	weights := make([]float64, len(p))
+	addresses := make([]string, len(p))
+	balances := make([]int64, len(p))
+
+	for i, v := range p {
+		repScore := repModule.CalculateScore(v.Address, true)
+		weight := float64(v.Balance) * repScore
+		totalWeight += weight
+		weights[i] = totalWeight
+		addresses[i] = v.Address
+		balances[i] = v.Balance
 	}
 
 	rand.Seed(time.Now().UnixNano())
-	total := 0.0
-	for _, v := range p {
-		total += v.Weight() * repModule.CalculateScore(v.Address, true)
-	}
+	r := rand.Float64() * totalWeight
 
-	r := rand.Float64() * total
-	for _, v := range p {
-		r -= v.Weight()
-		if r <= 0 {
-			return v
+	for i, w := range weights {
+		if r <= w {
+			return &Validator{
+				ID:      p[i].ID,
+				Address: addresses[i],
+				Balance: balances[i],
+			}
 		}
 	}
+
 	return p[0]
 }
 

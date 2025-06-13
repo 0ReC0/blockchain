@@ -69,10 +69,10 @@ func (n *BFTNode) Start() {
 
 // RunConsensusRound реализует полный раунд Tendermint-подобного консенсуса
 func (n *BFTNode) RunConsensusRound() {
-	// Выбор пропосера
+	// 1. Выбор пропосера
 	proposer := n.ValidatorPool.Select()
 	if proposer == nil {
-		fmt.Println("No proposer selected")
+		fmt.Println("❌ No proposer selected")
 		return
 	}
 
@@ -85,143 +85,159 @@ func (n *BFTNode) RunConsensusRound() {
 
 	repScore := repModule.CalculateScore(proposer.Address, true)
 	if repScore < 50 {
-		fmt.Println("Validator has low reputation, skipping")
+		fmt.Println("⚠️ Validator has low reputation, skipping")
 		return
 	}
 
+	// Инициализируем раунд
 	round := NewRound(n.Height, n.Round, proposer.Address)
 	n.CurrentRound = round
 
-	fmt.Printf("Starting round %d for height %d. Proposer: %s\n", n.Round, n.Height, proposer.Address)
+	fmt.Printf("🚀 Starting round %d for height %d. Proposer: %s\n", n.Round, n.Height, proposer.Address)
 
-	// 1. Propose
+	// 2. Propose (только если мы — пропосер)
 	if proposer.Address == n.Address {
-		transactions := n.TxPool.GetTransactions(100)
-		if len(transactions) == 0 {
-			fmt.Println("No transactions to propose")
+		if err := n.proposeBlock(round); err != nil {
+			fmt.Printf("❌ Failed to propose block: %v\n", err)
+			repModule.UpdateReputation(n.Address, -10) // Снижаем репутацию
 			return
 		}
-
-		// Проверяем подписи транзакций
-		var validTxs []*txpool.Transaction
-		for _, tx := range transactions {
-			if tx.Verify() {
-				validTxs = append(validTxs, tx)
-			} else {
-				fmt.Printf("Invalid transaction: %s\n", tx.ID)
-			}
-		}
-
-		if len(validTxs) == 0 {
-			fmt.Println("No valid transactions to propose")
-			return
-		}
-
-		// Создаем блок с помощью NewBlock
-		prevBlock := n.Chain.GetLatestBlock()
-		block := blockchain.NewBlock(
-			prevBlock.Index+1,
-			prevBlock.Hash,
-			validTxs,
-			n.Address,
-		)
-
-		// Подписываем блок
-		signatureBytes, err := n.Signer.Sign(block.SerializeWithoutSignature())
-		if err != nil {
-			fmt.Printf("Failed to sign block: %v\n", err)
-			return
-		}
-		block.Signature = signatureBytes
-
-		round.ProposedBlock = block.Serialize()
-		round.Step = gossip.StatePropose
-
-		// Отправляем предложение
-		n.BroadcastSignedMessage(gossip.StatePropose, block.Serialize(), block.Signature)
-		fmt.Printf("Proposed block %s with %d transactions\n", block.Hash, len(validTxs))
+		repModule.UpdateReputation(n.Address, 10) // Повышаем за успешное предложение
+	} else {
+		fmt.Printf("📬 Node is not proposer, waiting for proposal from %s\n", proposer.Address)
 	}
 
 	time.Sleep(1 * time.Second)
 
-	// 2. Prevote
-	prevoteData := []byte(fmt.Sprintf("prevote:%d:%d", n.Height, n.Round))
-	prevoteSig, err := n.Signer.Sign(prevoteData)
-	if err != nil {
-		fmt.Printf("Failed to sign prevote: %v\n", err)
+	// 3. Prevote
+	if err := n.signAndBroadcast(round, gossip.StatePrevote); err != nil {
+		fmt.Printf("❌ Failed to sign prevote: %v\n", err)
+		repModule.UpdateReputation(n.Address, -5)
 		return
 	}
-	round.Prevotes[n.Address] = prevoteSig
-	n.BroadcastSignedMessage(gossip.StatePrevote, prevoteData, prevoteSig)
-	fmt.Printf("Prevote from %s\n", n.Address)
 
 	time.Sleep(1 * time.Second)
 
-	// 3. Precommit
-	precommitData := []byte(fmt.Sprintf("precommit:%d:%d", n.Height, n.Round))
-	precommitSig, err := n.Signer.Sign(precommitData)
-	if err != nil {
-		fmt.Printf("Failed to sign prevote: %v\n", err)
+	// 4. Precommit
+	if err := n.signAndBroadcast(round, gossip.StatePrecommit); err != nil {
+		fmt.Printf("❌ Failed to sign precommit: %v\n", err)
+		repModule.UpdateReputation(n.Address, -5)
 		return
 	}
-	round.Precommits[n.Address] = precommitSig
-	n.BroadcastSignedMessage(gossip.StatePrecommit, precommitData, precommitSig)
-	fmt.Printf("Precommit from %s\n", n.Address)
 
 	time.Sleep(1 * time.Second)
 
-	// 4. Commit
-	totalValidators := len(n.ValidatorPool)
-
-	if HasQuorum(round.Precommits, totalValidators) {
+	// 5. Commit
+	if HasQuorum(round.Precommits, len(n.ValidatorPool)) {
 		if round.ProposedBlock != nil {
-			// Десериализуем блок
-			block := &blockchain.Block{}
-			if err := block.Deserialize(round.ProposedBlock); err != nil {
-				fmt.Printf("❌ Failed to deserialize block: %v\n", err)
+			if err := n.processCommittedBlock(round.ProposedBlock); err != nil {
+				fmt.Printf("❌ Failed to process committed block: %v\n", err)
+				repModule.UpdateReputation(n.Address, -10)
 				return
 			}
-
-			fmt.Printf("📬 Block received from proposer: %s, hash: %s\n", block.Validator, block.Hash)
-
-			pubKey, err := signature.GetPublicKey(block.Validator)
-			if err != nil {
-				fmt.Printf("Validator %s has no public key: %v\n", block.Validator, err)
-				return
-			}
-
-			// Проверяем подпись блока
-			if !signature.Verify(pubKey, block.SerializeWithoutSignature(), block.Signature) {
-				fmt.Println("[RunConsensusRound] ❌ Invalid block signature")
-				return
-			}
-
-			fmt.Printf("✅ Block signature verified for block: %s\n", block.Hash)
-
-			// Добавляем блок в цепочку через AddBlock (с мьютексом)
-			n.Chain.AddBlock(block)
-			fmt.Printf("✅ Block added to chain: %s\n", block.Hash)
-
-			// Очищаем транзакции из пула
-			for _, tx := range block.Transactions {
-				n.TxPool.RemoveTransaction(tx.ID)
-				fmt.Printf("🗑️ Removed transaction: %s\n", tx.ID)
-			}
-
-			// Подписываем коммит
-			commitSig, err := n.Signer.Sign(block.SerializeWithoutSignature())
-			if err != nil {
-				fmt.Printf("❌ Failed to sign commit: %v\n", err)
-				return
-			}
-
-			// Рассылаем коммит
-			n.BroadcastSignedMessage(gossip.StateCommit, block.SerializeWithoutSignature(), commitSig)
-			fmt.Printf("✅ Block committed: %s\n", block.Hash)
+			repModule.UpdateReputation(n.Address, 10) // Повышение за успешный коммит
 		} else {
 			fmt.Println("❌ ProposedBlock is nil — cannot commit")
 		}
+	} else {
+		fmt.Println("❌ Not enough precommits to commit")
 	}
+}
+
+func (n *BFTNode) proposeBlock(round *Round) error {
+	transactions := n.TxPool.GetTransactions(100)
+	if len(transactions) == 0 {
+		return fmt.Errorf("no transactions to propose")
+	}
+
+	var validTxs []*txpool.Transaction
+	for _, tx := range transactions {
+		if tx.Verify() {
+			validTxs = append(validTxs, tx)
+		} else {
+			fmt.Printf("❌ Invalid transaction: %s\n", tx.ID)
+		}
+	}
+
+	if len(validTxs) == 0 {
+		return fmt.Errorf("no valid transactions to propose")
+	}
+
+	prevBlock := n.Chain.GetLatestBlock()
+	block := blockchain.NewBlock(
+		prevBlock.Index+1,
+		prevBlock.Hash,
+		validTxs,
+		n.Address,
+	)
+
+	signatureBytes, err := n.Signer.Sign(block.SerializeWithoutSignature())
+	if err != nil {
+		return fmt.Errorf("failed to sign block: %w", err)
+	}
+	block.Signature = signatureBytes
+
+	round.ProposedBlock = block.Serialize()
+	round.Step = gossip.StatePropose
+
+	n.BroadcastSignedMessage(gossip.StatePropose, block.Serialize(), block.Signature)
+	fmt.Printf("✅ Proposed block %s with %d transactions\n", block.Hash, len(validTxs))
+
+	return nil
+}
+
+func (n *BFTNode) signAndBroadcast(round *Round, msgType gossip.MessageType) error {
+	data := []byte(fmt.Sprintf("%s:%d:%d", msgType, n.Height, n.Round))
+	sig, err := n.Signer.Sign(data)
+	if err != nil {
+		return err
+	}
+
+	switch msgType {
+	case gossip.StatePrevote:
+		round.Prevotes[n.Address] = sig
+	case gossip.StatePrecommit:
+		round.Precommits[n.Address] = sig
+	}
+
+	n.BroadcastSignedMessage(msgType, data, sig)
+	fmt.Printf("🗳 %s from %s\n", msgType, n.Address)
+
+	return nil
+}
+
+func (n *BFTNode) processCommittedBlock(blockData []byte) error {
+	block := &blockchain.Block{}
+	if err := block.Deserialize(blockData); err != nil {
+		return fmt.Errorf("failed to deserialize block: %w", err)
+	}
+
+	pubKey, err := signature.GetPublicKey(block.Validator)
+	if err != nil {
+		return fmt.Errorf("validator %s has no public key: %w", block.Validator, err)
+	}
+
+	if !signature.Verify(pubKey, block.SerializeWithoutSignature(), block.Signature) {
+		return fmt.Errorf("invalid block signature")
+	}
+
+	n.Chain.AddBlock(block)
+	fmt.Printf("✅ Block added to chain: %s\n", block.Hash)
+
+	for _, tx := range block.Transactions {
+		n.TxPool.RemoveTransaction(tx.ID)
+		fmt.Printf("🗑️ Removed transaction: %s\n", tx.ID)
+	}
+
+	commitSig, err := n.Signer.Sign(block.SerializeWithoutSignature())
+	if err != nil {
+		return fmt.Errorf("failed to sign commit: %w", err)
+	}
+
+	n.BroadcastSignedMessage(gossip.StateCommit, block.SerializeWithoutSignature(), commitSig)
+	fmt.Printf("✅ Block committed: %s\n", block.Hash)
+
+	return nil
 }
 
 func (n *BFTNode) BroadcastSignedMessage(msgType gossip.MessageType, data, signature []byte) {
