@@ -14,7 +14,6 @@ import (
 
 	// Хранилище
 	"blockchain/storage/blockchain"
-	"blockchain/storage/sharding"
 	"blockchain/storage/txpool"
 
 	// Криптография
@@ -28,7 +27,6 @@ import (
 
 	// API
 	"blockchain/integration/api"
-	"blockchain/integration/bank"
 
 	// Говернанс
 
@@ -134,19 +132,11 @@ func main() {
 		fmt.Println("⚠️ Upgrade failed:", err)
 	}
 
-	// ============ Инициализация шардов ============
-	shardMgr := sharding.NewShardManager()
-	shardMgr.CreateShard("0")
-
 	// ============ Инициализация масштабируемости ============
 	executor := parallel.NewParallelExecutor(4, 10)
 	if err := executor.ExecuteTransactions(txPool.GetTransactions(100), chain); err != nil {
 		fmt.Println("⚠️ Parallel execution failed:", err)
 	}
-
-	// ============ Инициализация банковского шлюза ============
-	bankGateway := bank.NewBankGateway("api-key", "https://bank-api.com")
-	_, _ = bankGateway.GetBalance("user123")
 
 	// ============ Запуск BFT-узла ============
 
