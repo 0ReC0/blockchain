@@ -57,15 +57,20 @@ func (cs *ConsensusSwitcher) startPoS(
 	signer signature.Signer,
 	peerAddresses []string,
 ) {
-	for i := range validators {
-		validator := validators[i]
-		go func() {
-			fmt.Printf("⛏️ PoS Validator %s started\n", validator.Address)
-			for {
-				cs.simulatePoSBlockCreation(chain, txPool, validator, signer)
-				time.Sleep(10 * time.Second)
-			}
-		}()
+	for {
+		// Выбираем валидатора через пул
+		selectedValidator := validatorPool.Select()
+		if selectedValidator == nil {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		go func(v *pos.Validator) {
+			fmt.Printf("⛏️ PoS Validator %s started\n", v.Address)
+			cs.simulatePoSBlockCreation(chain, txPool, v, signer)
+		}(selectedValidator)
+
+		time.Sleep(10 * time.Second)
 	}
 }
 
