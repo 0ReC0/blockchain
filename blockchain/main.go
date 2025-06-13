@@ -6,9 +6,11 @@ import (
 	"time"
 
 	// Консенсус
-	"blockchain/consensus/bft"
+
 	"blockchain/consensus/manager"
 	"blockchain/consensus/pos"
+
+	// Сеть
 	"blockchain/network/peer"
 
 	// Хранилище
@@ -23,8 +25,6 @@ import (
 	"blockchain/security/fiftyone"
 	"blockchain/security/sybil"
 
-	// Сеть
-
 	// Интеграция (API)
 	"blockchain/integration/api"
 
@@ -37,6 +37,7 @@ func main() {
 
 	// ============ Инициализация хранилища ============
 	chain := blockchain.NewBlockchain()
+	
 	txPool := txpool.NewTransactionPool()
 
 	// ============ Инициализация валидаторов ============
@@ -62,31 +63,6 @@ func main() {
 	signature.RegisterPublicKey(validators[0].Address, pubKey)
 	signature.RegisterPublicKey(validators[1].Address, pubKey)
 
-	// ============ Инициализация BFT-нод ============
-	bftNode := bft.NewBFTNode(
-		"validator1",
-		validators[0],
-		*validatorPool,
-		txPool,
-		chain,
-		signer,
-		peerAddresses[0],
-		peerAddresses,
-	)
-	bftNode2 := bft.NewBFTNode(
-		"validator2",
-		validators[1],
-		*validatorPool,
-		txPool,
-		chain,
-		signer,
-		peerAddresses[1],
-		peerAddresses,
-	)
-
-	// ============ Инициализация ConsensusSwitcher ============
-	switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
-
 	// ============ Инициализация защиты от 51% атак ============
 	validatorsMap := map[string]int64{
 		"validator1": 2000,
@@ -98,10 +74,6 @@ func main() {
 	// ============ Инициализация защиты от Sybil ============
 	sybilGuard := sybil.NewSybilGuard([]string{"validator1", "validator2"})
 	peer.SetSybilGuard(sybilGuard)
-
-	// ============ Запуск P2P сети ============
-	go bft.StartTCPServer(bftNode)
-	go bft.StartTCPServer(bftNode2)
 
 	// ============ Запуск REST API ============
 	apiServer := api.NewAPIServer(chain, txPool)
@@ -126,19 +98,16 @@ func main() {
 	}
 
 	// ============ Запуск консенсуса ============
-	go func() {
-		switcher.Run()
-	}()
+	switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
 
-	// ============ Запуск BFT-узлов ============
-	go func() {
-		time.Sleep(2 * time.Second)
-		bftNode.Start()
-	}()
-	go func() {
-		time.Sleep(3 * time.Second)
-		bftNode2.Start()
-	}()
+	switcher.StartConsensus(
+		txPool,
+		chain,
+		validators,
+		*validatorPool,
+		signer,
+		peerAddresses,
+	)
 
 	fmt.Println("✅ Node started. Waiting for connections...")
 

@@ -20,7 +20,7 @@ func NewParallelExecutor(workers, blockSize int) *ParallelExecutor {
 	}
 }
 
-func (e *ParallelExecutor) ExecuteTransactions(transactions []*txpool.Transaction, chain *blockchain.Blockchain) error {
+func (e *ParallelExecutor) ExecuteTransactions(transactions []*txpool.Transaction, chain *blockchain.Blockchain, validator string) error {
 	ch := make(chan []*txpool.Transaction)
 	var wg sync.WaitGroup
 
@@ -30,8 +30,17 @@ func (e *ParallelExecutor) ExecuteTransactions(transactions []*txpool.Transactio
 		go func() {
 			defer wg.Done()
 			for batch := range ch {
-				validator := "validator1" // можно передать или выбрать динамически
-				chain.AddBlock(batch, validator)
+				// Создаём блок
+				prevBlock := chain.GetLatestBlock()
+				block := blockchain.NewBlock(
+					prevBlock.Index+1,
+					prevBlock.Hash,
+					batch,
+					validator,
+				)
+
+				// Добавляем блок в цепочку
+				chain.AddBlock(block)
 			}
 		}()
 	}

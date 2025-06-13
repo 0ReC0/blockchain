@@ -2,12 +2,14 @@ package blockchain
 
 import (
 	"fmt"
+	"sync"
 
 	"blockchain/storage/txpool"
 )
 
 type Blockchain struct {
 	Blocks []*Block
+	mu     sync.Mutex
 }
 
 func NewBlockchain() *Blockchain {
@@ -20,11 +22,17 @@ func NewGenesisBlock() *Block {
 	return NewBlock(0, "0", []*txpool.Transaction{}, "genesis")
 }
 
-func (bc *Blockchain) AddBlock(transactions []*txpool.Transaction, validator string) {
-	prevBlock := bc.Blocks[len(bc.Blocks)-1]
-	newBlock := NewBlock(prevBlock.Index+1, prevBlock.Hash, transactions, validator)
-	bc.Blocks = append(bc.Blocks, newBlock)
+func (bc *Blockchain) AddBlock(block *Block) {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	if bc.HasBlock(block.Hash) {
+		return
+	}
+
+	bc.Blocks = append(bc.Blocks, block)
 }
+
 func (bc *Blockchain) GetBlockByNumber(blockNumber interface{}) *Block {
 	// Предположим, что blockNumber — это строка вида "0x1" или число
 	numStr, ok := blockNumber.(string)
@@ -51,4 +59,12 @@ func (bc *Blockchain) GetLatestBlock() *Block {
 		return nil
 	}
 	return bc.Blocks[len(bc.Blocks)-1]
+}
+func (chain *Blockchain) HasBlock(hash string) bool {
+	for _, b := range chain.Blocks {
+		if b.Hash == hash {
+			return true
+		}
+	}
+	return false
 }

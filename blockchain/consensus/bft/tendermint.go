@@ -58,6 +58,8 @@ func NewBFTNode(
 
 // Start запускает цикл консенсуса
 func (n *BFTNode) Start() {
+	go StartTCPServer(n)
+
 	ticker := time.NewTicker(10 * time.Second)
 	for range ticker.C {
 		n.RunConsensusRound()
@@ -115,16 +117,14 @@ func (n *BFTNode) RunConsensusRound() {
 			return
 		}
 
-		// Создаем блок
-		prevBlock := n.Chain.Blocks[len(n.Chain.Blocks)-1]
-		block := &blockchain.Block{
-			Index:        prevBlock.Index + 1,
-			Timestamp:    time.Now().Unix(),
-			PrevHash:     prevBlock.Hash,
-			Transactions: validTxs,
-			Validator:    n.Address,
-		}
-		block.Hash = block.CalculateHash()
+		// Создаем блок с помощью NewBlock
+		prevBlock := n.Chain.GetLatestBlock()
+		block := blockchain.NewBlock(
+			prevBlock.Index+1,
+			prevBlock.Hash,
+			validTxs,
+			n.Address,
+		)
 
 		// Подписываем блок
 		signatureBytes, err := n.Signer.Sign(block.SerializeWithoutSignature())
@@ -135,7 +135,6 @@ func (n *BFTNode) RunConsensusRound() {
 		block.Signature = signatureBytes
 
 		round.ProposedBlock = block.Serialize()
-
 		round.Step = gossip.StatePropose
 
 		// Отправляем предложение
@@ -146,14 +145,12 @@ func (n *BFTNode) RunConsensusRound() {
 	time.Sleep(1 * time.Second)
 
 	// 2. Prevote
-	// Подписываем prevote
 	prevoteData := []byte(fmt.Sprintf("prevote:%d:%d", n.Height, n.Round))
 	prevoteSig, err := n.Signer.Sign(prevoteData)
 	if err != nil {
 		fmt.Printf("Failed to sign prevote: %v\n", err)
 		return
 	}
-
 	round.Prevotes[n.Address] = prevoteSig
 	n.BroadcastSignedMessage(gossip.StatePrevote, prevoteData, prevoteSig)
 	fmt.Printf("Prevote from %s\n", n.Address)
@@ -161,14 +158,12 @@ func (n *BFTNode) RunConsensusRound() {
 	time.Sleep(1 * time.Second)
 
 	// 3. Precommit
-	// Подписываем precommit
 	precommitData := []byte(fmt.Sprintf("precommit:%d:%d", n.Height, n.Round))
 	precommitSig, err := n.Signer.Sign(precommitData)
 	if err != nil {
 		fmt.Printf("Failed to sign prevote: %v\n", err)
 		return
 	}
-
 	round.Precommits[n.Address] = precommitSig
 	n.BroadcastSignedMessage(gossip.StatePrecommit, precommitData, precommitSig)
 	fmt.Printf("Precommit from %s\n", n.Address)
@@ -203,8 +198,8 @@ func (n *BFTNode) RunConsensusRound() {
 
 			fmt.Printf("✅ Block signature verified for block: %s\n", block.Hash)
 
-			// Добавляем блок в цепочку
-			n.Chain.Blocks = append(n.Chain.Blocks, block)
+			// Добавляем блок в цепочку через AddBlock (с мьютексом)
+			n.Chain.AddBlock(block)
 			fmt.Printf("✅ Block added to chain: %s\n", block.Hash)
 
 			// Очищаем транзакции из пула
@@ -235,7 +230,7 @@ func (n *BFTNode) BroadcastSignedMessage(msgType gossip.MessageType, data, signa
 	for i, addr := range n.Peers {
 		peers[i] = &peer.Peer{
 			Addr: addr,
-			ID:   addr, // или генерируй ID как-то иначе
+			ID:   addr,
 		}
 	}
 
