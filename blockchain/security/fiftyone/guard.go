@@ -1,7 +1,9 @@
 package fiftyone
 
 import (
+	"blockchain/security/audit"
 	"sync"
+	"time"
 )
 
 type FiftyOnePercentGuard struct {
@@ -21,13 +23,24 @@ func NewFiftyOnePercentGuard(validators map[string]int64) *FiftyOnePercentGuard 
 	}
 }
 
+var auditor *audit.SecurityAuditor
+
+func SetAuditor(a *audit.SecurityAuditor) {
+	auditor = a
+}
+
 func (g *FiftyOnePercentGuard) IsMajorityAttackPossible() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-
-	// Проверяем, есть ли у одного узла более 51%
 	for _, power := range g.ValidatorPower {
 		if power*100 > g.TotalPower*51/100 {
+			auditor.RecordEvent(audit.SecurityEvent{
+				Timestamp: time.Now(),
+				Type:      "51PercentAttackRisk",
+				Message:   "Validator has >51% stake",
+				NodeID:    "validator1",
+				Severity:  "CRITICAL",
+			})
 			return true
 		}
 	}

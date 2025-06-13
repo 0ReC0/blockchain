@@ -1,319 +1,393 @@
 <!DOCTYPE html>
 <html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <title>Блокчейн Explorer</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      background: #0f0f0f;
-      color: #e0e0e0;
-      font-family: 'Segoe UI', sans-serif;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <title>Блокчейн Explorer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0f0f0f;
+        color: #e0e0e0;
+        font-family: "Segoe UI", sans-serif;
+      }
 
-    header {
-      text-align: center;
-      padding: 2rem 1rem;
-      background: linear-gradient(135deg, #00ff95, #7d3cff);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      font-size: 2.5rem;
-    }
+      header {
+        text-align: center;
+        padding: 2rem 1rem;
+        background: linear-gradient(135deg, #00ff95, #7d3cff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2.5rem;
+      }
 
-    .container {
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 1rem;
-    }
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 1rem;
+      }
 
-    .block {
-      background: #1a1a2e;
-      border-radius: 10px;
-      margin-bottom: 1rem;
-      overflow: hidden;
-      box-shadow: 0 0 10px rgba(0, 256, 149, 0.2);
-    }
+      .block {
+        background: #1a1a2e;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        overflow: hidden;
+        box-shadow: 0 0 10px rgba(0, 256, 149, 0.2);
+      }
 
-    .block-header {
-      padding: 1rem;
-      font-size: 1.2rem;
-      background: #222;
-      cursor: pointer;
-      color: #00ff95;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+      .block-header {
+        padding: 1rem;
+        font-size: 1.2rem;
+        background: #222;
+        cursor: pointer;
+        color: #00ff95;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
 
-    .block-content {
-      display: none;
-      padding: 1rem;
-      background: #0f0f0f;
-      color: #ccc;
-      font-size: 0.95rem;
-    }
+      .block-content {
+        display: none;
+        padding: 1rem;
+        background: #0f0f0f;
+        color: #ccc;
+        font-size: 0.95rem;
+      }
 
-    .tx {
-      background: #222;
-      margin-top: 1rem;
-      padding: 0.75rem;
-      border-radius: 8px;
-    }
+      .tx {
+        background: #222;
+        margin-top: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+      }
 
-    .tx-header {
-      font-size: 1rem;
-      color: #d8b4fe;
-      cursor: pointer;
-    }
+      .tx-header {
+        font-size: 1rem;
+        color: #d8b4fe;
+        cursor: pointer;
+      }
 
-    .tx-content {
-      display: none;
-      margin-top: 0.5rem;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 0.9rem;
-    }
+      .tx-content {
+        display: none;
+        margin-top: 0.5rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.9rem;
+      }
 
-    .btn-refresh {
-      display: block;
-      margin: 1rem auto;
-      padding: 0.75rem 1.5rem;
-      background: linear-gradient(45deg, #00ff95, #7d3cff);
-      border: none;
-      border-radius: 8px;
-      color: white;
-      font-size: 1rem;
-      cursor: pointer;
-      box-shadow: 0 0 10px #00ff95, 0 0 20px #7d3cff;
-      transition: transform 0.2s ease;
-    }
+      .btn-refresh {
+        display: block;
+        margin: 1rem auto;
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(45deg, #00ff95, #7d3cff);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-size: 1rem;
+        cursor: pointer;
+        box-shadow: 0 0 10px #00ff95, 0 0 20px #7d3cff;
+        transition: transform 0.2s ease;
+      }
 
-    .btn-refresh:hover {
-      transform: scale(1.05);
-    }
+      .btn-refresh:hover {
+        transform: scale(1.05);
+      }
 
-    /* Форма транзакции */
-    .tx-form {
-      background: #1a1a2e;
-      padding: 1.5rem;
-      border-radius: 10px;
-      margin-bottom: 2rem;
-      box-shadow: 0 0 10px rgba(0, 256, 149, 0.1);
-    }
+      /* Форма транзакции */
+      .tx-form {
+        background: #1a1a2e;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        box-shadow: 0 0 10px rgba(0, 256, 149, 0.1);
+      }
 
-    .tx-form h2 {
-      margin-top: 0;
-      margin-bottom: 1rem;
-      color: #00ff95;
-    }
+      .tx-form h2 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        color: #00ff95;
+      }
 
-    .tx-form input[type="text"],
-    .tx-form input[type="number"] {
-      width: 100%;
-      padding: 0.5rem;
-      margin-top: 0.2rem;
-      border-radius: 5px;
-      border: none;
-      font-size: 1rem;
-    }
+      .tx-form input[type="text"],
+      .tx-form input[type="number"] {
+        width: 100%;
+        padding: 0.5rem;
+        margin-top: 0.2rem;
+        border-radius: 5px;
+        border: none;
+        font-size: 1rem;
+      }
 
-    .tx-form label {
-      display: block;
-      margin-top: 0.8rem;
-      margin-bottom: 0.3rem;
-    }
+      .tx-form label {
+        display: block;
+        margin-top: 0.8rem;
+        margin-bottom: 0.3rem;
+      }
 
-    .tx-form button {
-      margin-top: 1rem;
-    }
-    .tx-form button {
-      display: inline-block;
-      padding: 0.6rem 1.2rem;
-      background: linear-gradient(45deg, #00ff95, #7d3cff);
-      border: none;
-      border-radius: 8px;
-      color: white;
-      font-size: 1rem;
-      font-weight: bold;
-      cursor: pointer;
-      box-shadow: 0 0 10px #00ff95, 0 0 20px #7d3cff;
-      transition: all 0.3s ease;
-    }
+      .tx-form button {
+        margin-top: 1rem;
+      }
+      .tx-form button {
+        display: inline-block;
+        padding: 0.6rem 1.2rem;
+        background: linear-gradient(45deg, #00ff95, #7d3cff);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        box-shadow: 0 0 10px #00ff95, 0 0 20px #7d3cff;
+        transition: all 0.3s ease;
+      }
 
-    .tx-form button:hover {
-      transform: scale(1.05);
-      box-shadow: 0 0 15px #00ff95, 0 0 25px #7d3cff;
-    }
+      .tx-form button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 15px #00ff95, 0 0 25px #7d3cff;
+      }
 
-    .tx-form button:active {
-      transform: scale(0.98);
-    }
+      .tx-form button:active {
+        transform: scale(0.98);
+      }
 
-    #txResult {
-      margin-top: 1rem;
-      font-size: 1rem;
-    }
-  </style>
-</head>
-<body>
-  <header>⛓ Блокчейн Explorer</header>
-  <div class="container">
+      #txResult {
+        margin-top: 1rem;
+        font-size: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>⛓ Блокчейн Explorer</header>
+    <div class="container">
+      <!-- Форма для отправки транзакции -->
+      <div class="tx-form">
+        <h2>💸 Новая транзакция</h2>
+        <form id="txForm">
+          <div>
+            <label>От кого:</label>
+            <input type="text" name="From" value="Name 1" required />
+          </div>
+          <div>
+            <label>Кому:</label>
+            <input type="text" name="To" value="Name 2" required />
+          </div>
+          <div>
+            <label>Сумма:</label>
+            <input
+              type="number"
+              step="0.01"
+              name="Amount"
+              value="10.0"
+              required
+            />
+          </div>
+          <div>
+            <label>
+              <input type="checkbox" name="IsPrivate" value="true" />
+              🔐 Приватная транзакция
+            </label>
+          </div>
+          <button type="submit">➕ Отправить</button>
+        </form>
+        <div id="txResult"></div>
+      </div>
 
-    <!-- Форма для отправки транзакции -->
-    <div class="tx-form">
-      <h2>💸 Новая транзакция</h2>
-      <form id="txForm">
-        <div>
-          <label>От кого:</label>
-          <input type="text" name="From" value="Name 1" required>
-        </div>
-        <div>
-          <label>Кому:</label>
-          <input type="text" name="To" value="Name 2" required>
-        </div>
-        <div>
-          <label>Сумма:</label>
-          <input type="number" step="0.01" name="Amount" value="10.0" required>
-        </div>
-        <div>
-          <label>
-            <input type="checkbox" name="IsPrivate" value="true">
-            🔐 Приватная транзакция
-          </label>
-        </div>
-        <button type="submit">➕ Отправить</button>
-      </form>
-      <div id="txResult"></div>
+      <!-- Кнопка обновления -->
+      <button class="btn-refresh" onclick="fetchBlocks()">🔄 Обновить</button>
+
+      <!-- Блоки и транзакции -->
+      <div id="blocks"></div>
+
+      <!-- Логи безопасности -->
+      <h2 style="color: #ff6ec7; margin-top: 2rem">🛡 Логи безопасности</h2>
+      <button class="btn-refresh" onclick="fetchAudit()">
+        🔍 Загрузить логи
+      </button>
+      <div id="auditLogs" style="margin-top: 1rem"></div>
     </div>
 
-    <!-- Кнопка обновления -->
-    <button class="btn-refresh" onclick="fetchBlocks()">🔄 Обновить</button>
+    <script>
+      async function fetchBlocks() {
+        const container = document.getElementById("blocks");
+        container.innerHTML = "🔄 Загрузка...";
 
-    <!-- Блоки и транзакции -->
-    <div id="blocks"></div>
-  </div>
+        try {
+          const response = await fetch("http://localhost:8081/blocks");
+          if (!response.ok) throw new Error("Ошибка загрузки блоков");
 
-  <script>
-    async function fetchBlocks() {
-      const container = document.getElementById('blocks');
-      container.innerHTML = '🔄 Загрузка...';
+          const blocks = await response.json();
+          container.innerHTML = "";
 
-      try {
-        const response = await fetch('http://localhost:8081/blocks');
-        if (!response.ok) throw new Error('Ошибка загрузки блоков');
+          blocks.forEach((block) => {
+            const blockEl = document.createElement("div");
+            blockEl.className = "block";
 
-        const blocks = await response.json();
-        container.innerHTML = '';
+            const header = document.createElement("div");
+            header.className = "block-header";
+            header.textContent = "📦 Блок #" + block.index + " — " + block.hash;
 
-        blocks.forEach(block => {
-          const blockEl = document.createElement('div');
-          blockEl.className = 'block';
+            const content = document.createElement("div");
+            content.className = "block-content";
 
-          const header = document.createElement('div');
-          header.className = 'block-header';
-          header.textContent = '📦 Блок #' + block.index + ' — ' + block.hash;
+            const timestamp = document.createElement("div");
+            timestamp.innerHTML =
+              "<strong>📅 Timestamp:</strong> " +
+              new Date(block.timestamp * 1000).toLocaleString();
 
-          const content = document.createElement('div');
-          content.className = 'block-content';
+            const txCount = document.createElement("div");
+            txCount.innerHTML =
+              "<strong>🧾 Транзакций:</strong> " + block.transactions.length;
 
-          const timestamp = document.createElement('div');
-          timestamp.innerHTML = '<strong>📅 Timestamp:</strong> ' + new Date(block.timestamp * 1000).toLocaleString();
+            const validator = document.createElement("div");
+            validator.innerHTML =
+              "<strong>🧑 Validator:</strong> " + block.validator;
 
-          const txCount = document.createElement('div');
-          txCount.innerHTML = '<strong>🧾 Транзакций:</strong> ' + block.transactions.length;
+            content.appendChild(timestamp);
+            content.appendChild(txCount);
+            content.appendChild(validator);
 
-          const validator = document.createElement('div');
-          validator.innerHTML = '<strong>🧑 Validator:</strong> ' + block.validator;
+            if (block.transactions.length > 0) {
+              block.transactions.forEach((tx) => {
+                const txEl = document.createElement("div");
+                txEl.className = "tx";
 
-          content.appendChild(timestamp);
-          content.appendChild(txCount);
-          content.appendChild(validator);
+                const txHeader = document.createElement("div");
+                txHeader.className = "tx-header";
+                txHeader.textContent = "📄 Транзакция: " + tx.ID;
 
-          if (block.transactions.length > 0) {
-            block.transactions.forEach(tx => {
-              const txEl = document.createElement('div');
-              txEl.className = 'tx';
+                const txContent = document.createElement("div");
+                txContent.className = "tx-content";
 
-              const txHeader = document.createElement('div');
-              txHeader.className = 'tx-header';
-              txHeader.textContent = '📄 Транзакция: ' + tx.ID;
+                const txTime = new Date(tx.Timestamp * 1000).toLocaleString();
 
-              const txContent = document.createElement('div');
-              txContent.className = 'tx-content';
-
-              const txTime = new Date(tx.Timestamp * 1000).toLocaleString();
-
-              txContent.innerHTML = `
+                txContent.innerHTML = `
                 <div><strong>🔢 ID:</strong> ${tx.ID}</div>
                 <div><strong>🧑 От:</strong> ${tx.From}</div>
                 <div><strong>🧍 Кому:</strong> ${tx.To}</div>
                 <div><strong>💰 Сумма:</strong> ${tx.Amount}</div>
                 <div><strong>📅 Время:</strong> ${txTime}</div>
                 <div><strong>📝 Подпись:</strong> ${tx.Signature}</div>
-                <div><strong>🔐 IsPrivate:</strong> ${tx.IsPrivate ? 'Да' : 'Нет'}</div>
+                <div><strong>🔐 IsPrivate:</strong> ${
+                  tx.IsPrivate ? "Да" : "Нет"
+                }</div>
               `;
 
-              txHeader.addEventListener('click', () => {
-                txContent.style.display = txContent.style.display === 'block' ? 'none' : 'block';
-              });
+                txHeader.addEventListener("click", () => {
+                  txContent.style.display =
+                    txContent.style.display === "block" ? "none" : "block";
+                });
 
-              txEl.appendChild(txHeader);
-              txEl.appendChild(txContent);
-              content.appendChild(txEl);
+                txEl.appendChild(txHeader);
+                txEl.appendChild(txContent);
+                content.appendChild(txEl);
+              });
+            }
+
+            blockEl.appendChild(header);
+            blockEl.appendChild(content);
+            container.appendChild(blockEl);
+
+            header.addEventListener("click", () => {
+              content.style.display =
+                content.style.display === "block" ? "none" : "block";
             });
+          });
+        } catch (e) {
+          container.innerHTML =
+            '<div style="color:red">❌ Ошибка: ' + e.message + "</div>";
+        }
+      }
+
+      // Автоматическая загрузка при открытии
+      fetchBlocks();
+
+      // Обработка формы
+      document
+        .getElementById("txForm")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+          const form = e.target;
+          const formData = new FormData(form);
+          const data = Object.fromEntries(formData);
+
+          const resultEl = document.getElementById("txResult");
+          resultEl.innerHTML = "🔄 Отправка транзакции...";
+
+          try {
+            const response = await fetch("http://localhost:8000/addtx", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(data),
+            });
+
+            const text = await response.text();
+            if (response.ok) {
+              resultEl.innerHTML = `<div style="color: #00ff95;">${text}</div>`;
+              form.reset();
+              fetchBlocks(); // Обновляем список блоков
+            } else {
+              resultEl.innerHTML = `<div style="color: red;">❌ Ошибка: ${text}</div>`;
+            }
+          } catch (e) {
+            resultEl.innerHTML = `<div style="color: red;">❌ Ошибка сети: ${e.message}</div>`;
           }
 
-          blockEl.appendChild(header);
-          blockEl.appendChild(content);
-          container.appendChild(blockEl);
+          return false; // ⬅️ Явно предотвращаем перезагрузку
+        });
 
-          header.addEventListener('click', () => {
-            content.style.display = content.style.display === 'block' ? 'none' : 'block';
+      async function fetchAudit() {
+        const container = document.getElementById("auditLogs");
+        container.innerHTML = "🔄 Загрузка логов безопасности...";
+
+        try {
+          const response = await fetch("http://localhost:8081/audit");
+          if (!response.ok) throw new Error("Ошибка загрузки логов");
+
+          const logs = await response.json();
+          container.innerHTML = "";
+
+          if (logs.length === 0) {
+            container.innerHTML = "<div>Нет записей в логах безопасности</div>";
+            return;
+          }
+
+          logs.forEach((log) => {
+            const logEl = document.createElement("div");
+            logEl.className = "block";
+            logEl.style.marginBottom = "0.5rem";
+
+            const header = document.createElement("div");
+            header.className = "block-header";
+            header.style.color =
+              log.Severity === "CRITICAL"
+                ? "#ff4b5c"
+                : log.Severity === "WARNING"
+                ? "#ffaa00"
+                : "#00ff95";
+            header.textContent = `${log.Timestamp} — ${log.Type}`;
+
+            const content = document.createElement("div");
+            content.className = "block-content";
+            content.style.display = "block";
+
+            content.innerHTML = `
+          <div><strong>Тип:</strong> ${log.Type}</div>
+          <div><strong>Сообщение:</strong> ${log.Message}</div>
+          <div><strong>Уровень:</strong> ${log.Severity}</div>
+          <div><strong>Нода:</strong> ${log.NodeID}</div>
+        `;
+
+            logEl.appendChild(header);
+            logEl.appendChild(content);
+            container.appendChild(logEl);
           });
-        });
-      } catch (e) {
-        container.innerHTML = '<div style="color:red">❌ Ошибка: ' + e.message + '</div>';
-      }
-    }
-
-    // Автоматическая загрузка при открытии
-    fetchBlocks();
-
-    // Обработка формы
-    document.getElementById('txForm').addEventListener('submit', async function (e) {
-      e.preventDefault();
-      const form = e.target;
-      const formData = new FormData(form);
-      const data = Object.fromEntries(formData);
-
-      const resultEl = document.getElementById('txResult');
-      resultEl.innerHTML = '🔄 Отправка транзакции...';
-
-      try {
-        const response = await fetch('http://localhost:8000/addtx', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(data)
-        });
-
-        const text = await response.text();
-        if (response.ok) {
-          resultEl.innerHTML = `<div style="color: #00ff95;">${text}</div>`;
-          form.reset();
-          fetchBlocks(); // Обновляем список блоков
-        } else {
-          resultEl.innerHTML = `<div style="color: red;">❌ Ошибка: ${text}</div>`;
+        } catch (e) {
+          container.innerHTML = `<div style="color:red">❌ Ошибка: ${e.message}</div>`;
         }
-      } catch (e) {
-        resultEl.innerHTML = `<div style="color: red;">❌ Ошибка сети: ${e.message}</div>`;
       }
-
-      return false; // ⬅️ Явно предотвращаем перезагрузку
-    });
-  </script>
-</body>
+    </script>
+  </body>
 </html>

@@ -21,6 +21,7 @@ import (
 	"blockchain/crypto/signature"
 
 	// Безопасность
+	"blockchain/security/audit"
 	"blockchain/security/double_spend"
 	"blockchain/security/fiftyone"
 	"blockchain/security/sybil"
@@ -37,7 +38,7 @@ func main() {
 
 	// ============ Инициализация хранилища ============
 	chain := blockchain.NewBlockchain()
-	
+
 	txPool := txpool.NewTransactionPool()
 
 	// ============ Инициализация валидаторов ============
@@ -75,8 +76,11 @@ func main() {
 	sybilGuard := sybil.NewSybilGuard([]string{"validator1", "validator2"})
 	peer.SetSybilGuard(sybilGuard)
 
+	// ========== Инициализация аудита безопасности ==========
+	auditor := audit.NewSecurityAuditor()
+
 	// ============ Запуск REST API ============
-	apiServer := api.NewAPIServer(chain, txPool)
+	apiServer := api.NewAPIServer(chain, txPool, auditor)
 	go func() {
 		fmt.Println("🔌 Starting REST API on :8081")
 		if err := apiServer.Start(":8081"); err != nil {
@@ -86,6 +90,20 @@ func main() {
 
 	// ============ Запуск защиты от двойной траты ============
 	double_spend.InitSecurity()
+
+	// ========== Логируем запуск ноды ==========
+	auditor.RecordEvent(audit.SecurityEvent{
+		Timestamp: time.Now(),
+		Type:      "NodeStartup",
+		Message:   "Blockchain node started successfully",
+		NodeID:    "validator1",
+		Severity:  "INFO",
+	})
+
+	// ========== Используем аудит в других компонентах ==========
+	double_spend.SetAuditor(auditor) // Передаем аудит в защиту от двойной траты
+	fiftyone.SetAuditor(auditor)     // Передаем аудит в защиту от 51% атак
+	sybil.SetAuditor(auditor)        // Передаем аудит в защиту от Sybil
 
 	// ============ Инициализация говернанса ============
 	upgradeMgr := upgrade.NewUpgradeManager("v1.0.0")

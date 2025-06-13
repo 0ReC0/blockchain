@@ -1,8 +1,10 @@
 package sybil
 
 import (
+	"blockchain/security/audit"
 	"crypto/sha256"
 	"sync"
+	"time"
 )
 
 type SybilGuard struct {
@@ -28,22 +30,35 @@ func (g *SybilGuard) IsKnownNode(id string) bool {
 	return g.knownNodes[id]
 }
 
+var auditor *audit.SecurityAuditor
+
+func SetAuditor(a *audit.SecurityAuditor) {
+	auditor = a
+}
+
 func (g *SybilGuard) RegisterNode(id string) bool {
 	if g.IsValidator(id) {
-		return true // валидаторы всегда доверяются
+		return true
 	}
 	if g.IsKnownNode(id) {
 		return true
 	}
-	// Простая проверка (можно заменить на PoW, PoS, Web of Trust)
 	hash := sha256.Sum256([]byte(id))
-	if hash[0] < 10 { // искусственное ограничение
+	if hash[0] < 10 {
 		g.mu.Lock()
 		defer g.mu.Unlock()
 		g.knownNodes[id] = true
 		return true
+	} else {
+		auditor.RecordEvent(audit.SecurityEvent{
+			Timestamp: time.Now(),
+			Type:      "SybilNodeRejected",
+			Message:   "Sybil node registration rejected: " + id,
+			NodeID:    "validator1",
+			Severity:  "WARNING",
+		})
+		return false
 	}
-	return false
 }
 
 func (g *SybilGuard) IsValidator(id string) bool {

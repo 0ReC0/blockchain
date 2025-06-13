@@ -1,7 +1,9 @@
 package double_spend
 
 import (
+	"blockchain/security/audit"
 	"sync"
+	"time"
 )
 
 type DoubleSpendGuard struct {
@@ -15,15 +17,27 @@ func NewDoubleSpendGuard() *DoubleSpendGuard {
 	}
 }
 
+var auditor *audit.SecurityAuditor
+
+func SetAuditor(a *audit.SecurityAuditor) {
+	auditor = a
+}
+
 func (g *DoubleSpendGuard) CheckAndMark(txID string) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-
 	if g.seenTransactions[txID] {
-		return false // двойной расход
+		auditor.RecordEvent(audit.SecurityEvent{
+			Timestamp: time.Now(),
+			Type:      "DoubleSpendAttempt",
+			Message:   "Detected double spend attempt: " + txID,
+			NodeID:    "validator1",
+			Severity:  "WARNING",
+		})
+		return false // двойная трата
 	}
 	g.seenTransactions[txID] = true
-	return true // транзакция уникальна
+	return true // уникальная транзакция
 }
 
 // InitSecurity — инициализирует защиту от двойных трат

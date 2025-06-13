@@ -9,6 +9,8 @@ import (
 	"blockchain/crypto/signature"
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
+		"blockchain/security/audit"
+
 )
 
 type APIServer struct {
@@ -16,7 +18,11 @@ type APIServer struct {
 	TxPool *txpool.TransactionPool
 }
 
-func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool) *APIServer {
+var auditor *audit.SecurityAuditor
+
+
+func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool, auditorInstance *audit.SecurityAuditor) *APIServer {
+	auditor = auditorInstance // ✅ Сохраняем инстанс аудита
 	return &APIServer{
 		Chain:  chain,
 		TxPool: txPool,
@@ -24,6 +30,7 @@ func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool) 
 }
 
 func (s *APIServer) Start(addr string) error {
+	http.HandleFunc("/audit", enableCORS(s.handleSecurityAudit))
 	http.HandleFunc("/blocks", enableCORS(s.handleBlocks))
 	http.HandleFunc("/register", s.handleRegisterPublicKey)
 	http.HandleFunc("/transactions", func(w http.ResponseWriter, r *http.Request) {
@@ -67,6 +74,11 @@ func (s *APIServer) handleAddTransaction(w http.ResponseWriter, r *http.Request)
 		"status":      "success",
 		"transaction": tx.ID,
 	})
+}
+
+func (s *APIServer) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(auditor.GetEvents())
 }
 
 // handleRegisterPublicKey обрабатывает POST /register
