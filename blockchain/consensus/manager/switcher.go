@@ -80,7 +80,13 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 		return
 	}
 
-	prevBlock := chain.Blocks[len(chain.Blocks)-1]
+	// Получаем последний блок из БД
+	prevBlock := chain.GetLatestBlock()
+	if prevBlock == nil {
+		fmt.Println("❌ Cannot create new block: no previous block found")
+		return
+	}
+
 	block := &blockchain.Block{
 		Index:        prevBlock.Index + 1,
 		Timestamp:    time.Now().Unix(),
@@ -92,7 +98,10 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 	signatureBytes, _ := signer.Sign(block.SerializeWithoutSignature())
 	block.Signature = signatureBytes
 
-	chain.Blocks = append(chain.Blocks, block)
+	// Добавляем блок в БД
+	chain.AddBlock(block)
+
+	// Удаляем транзакции из пула
 	for _, tx := range transactions {
 		txPool.RemoveTransaction(tx.ID)
 	}

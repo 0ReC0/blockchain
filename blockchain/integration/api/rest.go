@@ -1,3 +1,4 @@
+// api/rest.go
 package api
 
 import (
@@ -7,10 +8,11 @@ import (
 	"net/http"
 
 	"blockchain/crypto/signature"
+	"blockchain/security/audit"
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
-		"blockchain/security/audit"
 
+	"github.com/dgraph-io/badger/v4"
 )
 
 type APIServer struct {
@@ -20,9 +22,13 @@ type APIServer struct {
 
 var auditor *audit.SecurityAuditor
 
-
 func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool, auditorInstance *audit.SecurityAuditor) *APIServer {
-	auditor = auditorInstance // ✅ Сохраняем инстанс аудита
+	auditor = auditorInstance
+
+	if txPool == nil {
+		txPool = txpool.NewTransactionPool()
+	}
+
 	return &APIServer{
 		Chain:  chain,
 		TxPool: txPool,
@@ -46,10 +52,50 @@ func (s *APIServer) Start(addr string) error {
 	return http.ListenAndServe(addr, nil)
 }
 
+// ===== Блоки =====
+
 func (s *APIServer) handleBlocks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.Chain.Blocks)
+
+	if s.Chain == nil {
+		http.Error(w, "Blockchain not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	db := s.Chain.DB()
+	if db == nil {
+		http.Error(w, "Database not available", http.StatusInternalServerError)
+		return
+	}
+
+	var blocks []*blockchain.Block = make([]*blockchain.Block, 0) // ✅ Инициализируем срез
+	err := db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			val, _ := item.ValueCopy(nil)
+			block := &blockchain.Block{}
+			block.Deserialize(val)
+			if block.Transactions == nil {
+				block.Transactions = []*txpool.Transaction{}
+			}
+			blocks = append(blocks, block)
+		}
+		return nil
+	})
+
+	if err != nil {
+		http.Error(w, "Failed to read blocks from DB", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(blocks)
 }
+
+// ===== Транзакции =====
 
 func (s *APIServer) handleTransactions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -76,12 +122,15 @@ func (s *APIServer) handleAddTransaction(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+// ===== Аудит =====
+
 func (s *APIServer) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(auditor.GetEvents())
 }
 
-// handleRegisterPublicKey обрабатывает POST /register
+// ===== Регистрация ключей =====
+
 func (s *APIServer) handleRegisterPublicKey(w http.ResponseWriter, r *http.Request) {
 	type RegisterRequest struct {
 		Address string `json:"address"`
@@ -113,6 +162,8 @@ func (s *APIServer) handleRegisterPublicKey(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "Public key registered for %s", req.Address)
 }
+
+// ===== CORS =====
 
 func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

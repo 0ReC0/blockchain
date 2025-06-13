@@ -67,9 +67,32 @@ func (b *Block) Serialize() []byte {
 }
 
 func (b *Block) Deserialize(data []byte) error {
+	type BlockTemp struct {
+		Index        int64
+		Timestamp    int64
+		PrevHash     string
+		Hash         string
+		Transactions []*txpool.Transaction
+		Validator    string
+		Nonce        string
+	}
+
+	var temp BlockTemp
 	buf := bytes.NewBuffer(data)
 	dec := gob.NewDecoder(buf)
-	return dec.Decode(b)
+	if err := dec.Decode(&temp); err != nil {
+		return err
+	}
+
+	b.Index = temp.Index
+	b.Timestamp = temp.Timestamp
+	b.PrevHash = temp.PrevHash
+	b.Hash = temp.Hash
+	b.Transactions = temp.Transactions
+	b.Validator = temp.Validator
+	b.Nonce = temp.Nonce
+
+	return nil
 }
 
 type BlockWithoutSignature struct {
@@ -83,7 +106,17 @@ type BlockWithoutSignature struct {
 }
 
 func (b *Block) SerializeWithoutSignature() []byte {
-	temp := BlockWithoutSignature{
+	type BlockTemp struct {
+		Index        int64
+		Timestamp    int64
+		PrevHash     string
+		Hash         string
+		Transactions []*txpool.Transaction
+		Validator    string
+		Nonce        string
+	}
+
+	temp := BlockTemp{
 		Index:        b.Index,
 		Timestamp:    b.Timestamp,
 		PrevHash:     b.PrevHash,
@@ -92,6 +125,7 @@ func (b *Block) SerializeWithoutSignature() []byte {
 		Validator:    b.Validator,
 		Nonce:        b.Nonce,
 	}
+
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	if err := enc.Encode(temp); err != nil {

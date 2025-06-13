@@ -40,6 +40,13 @@ func NewBFTNode(
 	address string,
 	peers []string,
 ) *BFTNode {
+	if chain == nil {
+		panic("chain is nil")
+	}
+	if txPool == nil {
+		panic("txPool is nil")
+	}
+
 	return &BFTNode{
 		ID:            id,
 		Address:       address,
@@ -145,6 +152,14 @@ func (n *BFTNode) RunConsensusRound() {
 }
 
 func (n *BFTNode) proposeBlock(round *Round) error {
+	if n.Chain == nil {
+		return fmt.Errorf("chain is nil")
+	}
+
+	if n.Chain.DB() == nil {
+		return fmt.Errorf("chain.db is nil")
+	}
+
 	transactions := n.TxPool.GetTransactions(100)
 	if len(transactions) == 0 {
 		return fmt.Errorf("no transactions to propose")
@@ -154,8 +169,6 @@ func (n *BFTNode) proposeBlock(round *Round) error {
 	for _, tx := range transactions {
 		if tx.Verify() {
 			validTxs = append(validTxs, tx)
-		} else {
-			fmt.Printf("❌ Invalid transaction: %s\n", tx.ID)
 		}
 	}
 
@@ -163,7 +176,12 @@ func (n *BFTNode) proposeBlock(round *Round) error {
 		return fmt.Errorf("no valid transactions to propose")
 	}
 
+	// Получаем последний блок
 	prevBlock := n.Chain.GetLatestBlock()
+	if prevBlock == nil {
+		return fmt.Errorf("chain is empty or invalid")
+	}
+
 	block := blockchain.NewBlock(
 		prevBlock.Index+1,
 		prevBlock.Hash,
@@ -179,10 +197,8 @@ func (n *BFTNode) proposeBlock(round *Round) error {
 
 	round.ProposedBlock = block.Serialize()
 	round.Step = gossip.StatePropose
-
 	n.BroadcastSignedMessage(gossip.StatePropose, block.Serialize(), block.Signature)
 	fmt.Printf("✅ Proposed block %s with %d transactions\n", block.Hash, len(validTxs))
-
 	return nil
 }
 

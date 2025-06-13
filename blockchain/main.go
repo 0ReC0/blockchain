@@ -33,10 +33,16 @@ import (
 )
 
 func main() {
-	fmt.Println("🚀 Starting Minimal Blockchain Node...")
+	fmt.Println("🚀 Starting Blockchain Node...")
 
 	// ============ Инициализация хранилища ============
 	chain := blockchain.NewBlockchain()
+	fmt.Println("chain:", chain)
+	fmt.Println("chain.db:", chain.DB())
+	if chain == nil {
+		panic("chain is nil")
+	}
+	defer chain.Close()
 
 	txPool := txpool.NewTransactionPool()
 

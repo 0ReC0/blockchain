@@ -1,3 +1,4 @@
+// blockchain/blockchain.go
 package blockchain
 
 import (
@@ -5,66 +6,144 @@ import (
 	"sync"
 
 	"blockchain/storage/txpool"
+
+	"github.com/dgraph-io/badger/v4"
 )
 
 type Blockchain struct {
-	Blocks []*Block
-	mu     sync.Mutex
+	db *badger.DB
+	mu sync.Mutex
 }
 
 func NewBlockchain() *Blockchain {
-	return &Blockchain{
-		Blocks: []*Block{NewGenesisBlock()},
+	opts := badger.DefaultOptions("./data/badgerdb").WithInMemory(false)
+	db, err := badger.Open(opts)
+	if err != nil {
+		panic("❌ Failed to open BadgerDB: " + err.Error())
 	}
+	fmt.Println("✅ BadgerDB opened successfully")
+
+	// Проверяем, есть ли уже блоки в БД
+	hasGenesis := false
+	err = db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		it.Rewind()
+		hasGenesis = it.Valid()
+		return nil
+	})
+
+	if err != nil {
+		panic("❌ Failed to check for existing blocks: " + err.Error())
+	}
+
+	bc := &Blockchain{
+		db: db,
+	}
+
+	// Если genesis-блока нет — создаём его
+	if !hasGenesis {
+		genesis := NewGenesisBlock()
+		fmt.Println("⛏️ Genesis block created:", genesis.Hash)
+		bc.AddBlock(genesis)
+	}
+
+	return bc
 }
 
 func NewGenesisBlock() *Block {
 	return NewBlock(0, "0", []*txpool.Transaction{}, "genesis")
 }
 
-func (bc *Blockchain) AddBlock(block *Block) {
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
-
-	if bc.HasBlock(block.Hash) {
-		return
-	}
-
-	bc.Blocks = append(bc.Blocks, block)
+func (bc *Blockchain) DB() *badger.DB {
+	return bc.db
 }
 
 func (bc *Blockchain) GetBlockByNumber(blockNumber interface{}) *Block {
-	// Предположим, что blockNumber — это строка вида "0x1" или число
 	numStr, ok := blockNumber.(string)
 	if !ok {
 		return nil
 	}
 
-	// Упрощённый парсинг hex
 	var num int64
-	_, err := fmt.Sscanf(numStr, "0x%x", &num)
-	if err != nil {
-		return nil
+	if len(numStr) > 2 && numStr[:2] == "0x" {
+		_, err := fmt.Sscanf(numStr, "%x", &num)
+		if err != nil {
+			return nil
+		}
+	} else {
+		_, err := fmt.Sscanf(numStr, "%d", &num)
+		if err != nil {
+			return nil
+		}
 	}
 
-	for _, block := range bc.Blocks {
-		if block.Index == num {
-			return block
+	var block *Block
+	err := bc.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchSize = 10
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		i := int64(0)
+		for it.Rewind(); it.Valid(); it.Next() {
+			if i == num {
+				item := it.Item()
+				val, _ := item.ValueCopy(nil)
+				block = &Block{}
+				block.Deserialize(val)
+				return nil
+			}
+			i++
 		}
-	}
-	return nil
-}
-func (bc *Blockchain) GetLatestBlock() *Block {
-	if len(bc.Blocks) == 0 {
 		return nil
+	})
+
+	if err != nil {
+		fmt.Println("❌ Failed to get block from BadgerDB:", err)
 	}
-	return bc.Blocks[len(bc.Blocks)-1]
+
+	return block
 }
-func (chain *Blockchain) HasBlock(hash string) bool {
-	for _, b := range chain.Blocks {
-		if b.Hash == hash {
-			return true
+
+func (bc *Blockchain) GetLatestBlock() *Block {
+	var latestBlock *Block
+	err := bc.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.Reverse = true
+		opts.PrefetchSize = 1
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		if it.Rewind(); it.Valid() {
+			item := it.Item()
+			val, _ := item.ValueCopy(nil)
+			latestBlock = &Block{}
+			latestBlock.Deserialize(val)
 		}
+		return nil
+	})
+	if err != nil {
+		fmt.Println("❌ Failed to get latest block from BadgerDB:", err)
 	}
-	return false
+	return latestBlock
+}
+
+func (bc *Blockchain) Close() {
+	bc.db.Close()
+}
+func (bc *Blockchain) AddBlock(block *Block) {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	err := bc.db.Update(func(txn *badger.Txn) error {
+		data := block.Serialize()
+		return txn.Set([]byte(block.Hash), data)
+	})
+
+	if err != nil {
+		fmt.Println("❌ Failed to save block to BadgerDB:", err)
+	}
 }
