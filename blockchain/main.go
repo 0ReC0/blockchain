@@ -68,15 +68,26 @@ func main() {
 	if err != nil {
 		panic("❌ Failed to create signer: " + err.Error())
 	}
-	pubKey, err := signature.ParsePublicKey(signer.PublicKey())
-	if err != nil {
-		panic("❌ Failed to parse public key: " + err.Error())
-	}
 
 	// Регистрируем публичные ключи для всех валидаторов
+	certPaths := map[string]string{
+		"localhost:26656": "blockchain/certs/validator1.crt",
+		"localhost:26657": "blockchain/certs/validator2.crt",
+		"localhost:26658": "blockchain/certs/validator3.crt",
+		"localhost:26659": "blockchain/certs/validator4.crt",
+		"localhost:26660": "blockchain/certs/validator5.crt",
+	}
+
 	for i, v := range validators {
+		certPath, exists := certPaths[v.Address]
+		if !exists {
+			panic("Certificate not found for validator: " + v.Address)
+		}
+		pubKey, err := signature.LoadPublicKeyFromFile(certPath)
+		if err != nil {
+			panic("Failed to load public key for " + v.Address + ": " + err.Error())
+		}
 		signature.RegisterPublicKey(v.Address, pubKey)
-		fmt.Printf("🔑 Public key registered for validator %s\n", v.Address)
 
 		// Для демонстрации — покажем адрес и стейк
 		fmt.Printf("🏷️ Validator %d: %s | Stake: %d\n", i+1, v.Address, v.Balance)
