@@ -37,8 +37,6 @@ func main() {
 
 	// ============ Инициализация хранилища ============
 	chain := blockchain.NewBlockchain()
-	fmt.Println("chain:", chain)
-	fmt.Println("chain.db:", chain.DB())
 	if chain == nil {
 		panic("chain is nil")
 	}

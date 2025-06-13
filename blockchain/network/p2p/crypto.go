@@ -32,7 +32,5 @@ func GenerateTLSConfig() *tls.Config {
 		Certificates: []tls.Certificate{serverCert},
 		ClientCAs:    caPool,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
-		// FIXME: delete insecure if run on prod
-		InsecureSkipVerify: true, // ❌ Только для тестов!
 	}
 }
