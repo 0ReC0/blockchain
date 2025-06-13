@@ -324,30 +324,11 @@ REST API предоставляет следующие эндпоинты:
 - `server.key` — приватный ключ сервера
 - `ca.crt` — сертификат центра сертификации (если используется клиентская аутентификация)
 
-Сертификаты можно сгенерировать с помощью `openssl`. Пример:
+Сертификаты можно сгенерировать с помощью `generate-validator-certs.sh`. Пример:
 ```bash
-mkdir -p blockchain/certs
-cd blockchain/certs
-# 1. Создайте корневой CA
-openssl genrsa -out ca.key 4096
-openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj "/C=RU/ST=Moscow/L=Moscow/O=MyOrg/CN=mydomain.local"
-# 2. Создайте приватный ключ и CSR для валидатора
-openssl genrsa -out validator1.key 4096
-openssl genrsa -out validator2.key 4096
-openssl genrsa -out validator3.key 4096
-openssl genrsa -out validator4.key 4096
-openssl genrsa -out validator5.key 4096
-openssl req -new -key validator1.key -out validator1.csr -subj "/C=RU/ST=Moscow/L=Moscow/O=MyOrg/CN=validator1"
-openssl req -new -key validator2.key -out validator2.csr -subj "/C=RU/ST=Moscow/L=Moscow/O=MyOrg/CN=validator2"
-openssl req -new -key validator3.key -out validator3.csr -subj "/C=RU/ST=Moscow/L=Moscow/O=MyOrg/CN=validator3"
-openssl req -new -key validator4.key -out validator4.csr -subj "/C=RU/ST=Moscow/L=Moscow/O=MyOrg/CN=validator4"
-openssl req -new -key validator5.key -out validator5.csr -subj "/C=RU/ST=Moscow/L=Moscow/O=MyOrg/CN=validator5"
-# 3. Подпишите сертификат валидатора с помощью CA
-openssl x509 -req -days 365 -in validator1.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out validator1.crt
-openssl x509 -req -days 365 -in validator2.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out validator2.crt
-openssl x509 -req -days 365 -in validator3.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out validator3.crt
-openssl x509 -req -days 365 -in validator4.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out validator4.crt
-openssl x509 -req -days 365 -in validator5.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out validator5.crt
+cd blockchain
+chmod +x generate-validator-certs.sh
+./generate-validator-certs.sh
 ```
 
 ### ⚠️ Важно: Удаление небезопасных настроек

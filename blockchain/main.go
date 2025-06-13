@@ -71,11 +71,11 @@ func main() {
 
 	// Регистрируем публичные ключи для всех валидаторов
 	certPaths := map[string]string{
-		"localhost:26656": "blockchain/certs/validator1.crt",
-		"localhost:26657": "blockchain/certs/validator2.crt",
-		"localhost:26658": "blockchain/certs/validator3.crt",
-		"localhost:26659": "blockchain/certs/validator4.crt",
-		"localhost:26660": "blockchain/certs/validator5.crt",
+		"localhost:26656": "certs/validator1.crt",
+		"localhost:26657": "certs/validator2.crt",
+		"localhost:26658": "certs/validator3.crt",
+		"localhost:26659": "certs/validator4.crt",
+		"localhost:26660": "certs/validator5.crt",
 	}
 
 	for i, v := range validators {

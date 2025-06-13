@@ -36,17 +36,24 @@ func LoadPublicKeyFromFile(path string) (*ecdsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Декодируем PEM-данные
 	block, _ := pem.Decode(data)
 	if block == nil || block.Type != "CERTIFICATE" {
-		return nil, fmt.Errorf("failed to decode PEM block")
+		return nil, fmt.Errorf("failed to decode PEM block as certificate")
 	}
+
+	// Парсим сертификат
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		return nil, err
 	}
+
+	// Извлекаем публичный ключ и проверяем его тип
 	pubKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("not an ECDSA public key")
+		return nil, fmt.Errorf("public key is not ECDSA")
 	}
+
 	return pubKey, nil
 }
