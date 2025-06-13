@@ -57,7 +57,7 @@ func (n *Node) Start() {
 	go n.listenTLS()
 }
 func (n *Node) listenTLS() {
-	config := p2p.GenerateTLSConfig()
+	config := p2p.GenerateClientTLSConfig() // ← передаем адрес
 	listener, err := tls.Listen("tcp", n.Addr, config)
 	if err != nil {
 		log.Fatalf("Failed to start TLS listener: %v", err)

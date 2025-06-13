@@ -2,7 +2,10 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/tls"
 	"fmt"
+	"os"
 	"time"
 
 	// Консенсус
@@ -31,6 +34,46 @@ import (
 	// Говернанс
 	"blockchain/governance/upgrade"
 )
+
+func runNode(
+	txPool *txpool.TransactionPool,
+	chain *blockchain.Blockchain,
+	validator *pos.Validator,
+	validatorPool pos.ValidatorPool,
+	peerAddresses []string,
+	index int,
+) {
+	// Загружаем свой сертификат и ключ
+	certPath := fmt.Sprintf("certs/validator%d.crt", index+1)
+	keyPath := fmt.Sprintf("certs/validator%d.key", index+1)
+
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		panic(fmt.Sprintf("❌ Failed to load cert for validator %d: %v", index+1, err))
+	}
+
+	ecdsaPrivateKey, ok := cert.PrivateKey.(*ecdsa.PrivateKey)
+	if !ok {
+		panic("❌ Private key is not ECDSA")
+	}
+
+	// Создаём signer из приватного ключа
+	signer := signature.NewSignerFromKey(ecdsaPrivateKey)
+
+	// Регистрируем публичный ключ
+	signature.RegisterPublicKey(validator.Address, &ecdsaPrivateKey.PublicKey)
+
+	// Запускаем консенсус
+	switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
+	switcher.StartConsensus(
+		txPool,
+		chain,
+		[]*pos.Validator{validator},
+		validatorPool,
+		signer,
+		peerAddresses,
+	)
+}
 
 func main() {
 	fmt.Println("🚀 Starting Blockchain Node...")
@@ -70,29 +113,22 @@ func main() {
 	}
 
 	// Регистрируем публичные ключи для всех валидаторов
-	certPaths := map[string]string{
-		"localhost:26656": "certs/validator1.crt",
-		"localhost:26657": "certs/validator2.crt",
-		"localhost:26658": "certs/validator3.crt",
-		"localhost:26659": "certs/validator4.crt",
-		"localhost:26660": "certs/validator5.crt",
+	// certPaths := map[string]string{
+	// 	"localhost:26656": "certs/validator1.crt",
+	// 	"localhost:26657": "certs/validator2.crt",
+	// 	"localhost:26658": "certs/validator3.crt",
+	// 	"localhost:26659": "certs/validator4.crt",
+	// 	"localhost:26660": "certs/validator5.crt",
+	// }
+
+	for i, validator := range validators {
+		go func(i int, v *pos.Validator) {
+			os.Setenv("NODE_ADDRESS", v.Address)
+			time.Sleep(time.Duration(i) * 2 * time.Second)
+			fmt.Printf("🏷️ Starting validator node: %s\n", v.Address)
+			runNode(txPool, chain, v, *validatorPool, peerAddresses, i)
+		}(i, validator)
 	}
-
-	for i, v := range validators {
-		certPath, exists := certPaths[v.Address]
-		if !exists {
-			panic("Certificate not found for validator: " + v.Address)
-		}
-		pubKey, err := signature.LoadPublicKeyFromFile(certPath)
-		if err != nil {
-			panic("Failed to load public key for " + v.Address + ": " + err.Error())
-		}
-		signature.RegisterPublicKey(v.Address, pubKey)
-
-		// Для демонстрации — покажем адрес и стейк
-		fmt.Printf("🏷️ Validator %d: %s | Stake: %d\n", i+1, v.Address, v.Balance)
-	}
-
 	// ============ Инициализация защиты от 51% атак ============
 	validatorsMap := map[string]int64{
 		"validator1": 2000,

@@ -49,7 +49,7 @@ func Broadcast(peers []*peer.Peer, msg *GossipMessage) error {
 // BroadcastSignedConsensusMessage — рассылает подписанные сообщения всем пирам
 func BroadcastSignedConsensusMessage(peers []*peer.Peer, msg *SignedConsensusMessage) error {
 	for _, peer := range peers {
-		conn, err := tls.Dial("tcp", peer.Addr, p2p.GenerateTLSConfig())
+		conn, err := tls.Dial("tcp", peer.Addr, p2p.GenerateClientTLSConfig())
 		if err != nil {
 			fmt.Printf("Can't connect to peer %s: %v\n", peer.ID, err)
 			continue

@@ -20,7 +20,7 @@ type TcpMessage struct {
 
 // StartTCPServer — запускает TCP-сервер для BFT-нод
 func StartTCPServer(bftNode *BFTNode) {
-	config := p2p.GenerateTLSConfig()
+	config := p2p.GenerateTLSConfig(bftNode.Address)
 	listener, err := tls.Listen("tcp", bftNode.Address, config)
 	if err != nil {
 		fmt.Printf("❌ Failed to start TCP server on %s: %v\n", bftNode.Address, err)
@@ -84,8 +84,8 @@ func BroadcastMessage(bftNode *BFTNode, msgType gossip.MessageType, data []byte)
 
 	for _, peer := range bftNode.Peers {
 		go func(addr string) {
-			// Используем TLS вместо обычного TCP
-			conn, err := tls.Dial("tcp", addr, p2p.GenerateTLSConfig())
+			// Используем клиентский TLS-конфиг
+			conn, err := tls.Dial("tcp", addr, p2p.GenerateClientTLSConfig())
 			if err != nil {
 				fmt.Printf("❌ Can't connect to peer %s: %v\n", addr, err)
 				return

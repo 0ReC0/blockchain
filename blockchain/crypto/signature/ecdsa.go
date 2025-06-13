@@ -15,6 +15,13 @@ type ECDSASigner struct {
 	publicKey  *ecdsa.PublicKey
 }
 
+func NewSignerFromKey(privateKey *ecdsa.PrivateKey) *ECDSASigner {
+	return &ECDSASigner{
+		privateKey: privateKey,
+		publicKey:  &privateKey.PublicKey,
+	}
+}
+
 func NewECDSASigner() (*ECDSASigner, error) {
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

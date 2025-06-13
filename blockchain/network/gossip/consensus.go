@@ -60,7 +60,7 @@ func HandleSignedMessage(data []byte) (*ConsensusMessage, error) {
 
 func BroadcastConsensusMessage(peers []*peer.Peer, msg *ConsensusMessage) error {
 	for _, peer := range peers {
-		conn, err := tls.Dial("tcp", peer.Addr, p2p.GenerateTLSConfig())
+		conn, err := tls.Dial("tcp", peer.Addr, p2p.GenerateClientTLSConfig())
 		if err != nil {
 			fmt.Printf("Can't connect to peer %s: %v\n", peer.ID, err)
 			continue
