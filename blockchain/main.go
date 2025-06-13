@@ -6,7 +6,6 @@ import (
 	"time"
 
 	// Консенсус
-
 	"blockchain/consensus/manager"
 	"blockchain/consensus/pos"
 
@@ -45,11 +44,19 @@ func main() {
 	peerAddresses := []string{
 		"localhost:26656", // validator1
 		"localhost:26657", // validator2
+		"localhost:26658", // validator3
+		"localhost:26659", // validator4
+		"localhost:26660", // validator5
 	}
+
 	validators := []*pos.Validator{
 		pos.NewValidatorWithAddress("validator1", peerAddresses[0], 2000),
 		pos.NewValidatorWithAddress("validator2", peerAddresses[1], 1000),
+		pos.NewValidatorWithAddress("validator3", peerAddresses[2], 1500),
+		pos.NewValidatorWithAddress("validator4", peerAddresses[3], 1200),
+		pos.NewValidatorWithAddress("validator5", peerAddresses[4], 800),
 	}
+
 	validatorPool := pos.NewValidatorPool(validators)
 
 	// ============ Инициализация signer'а ============
@@ -61,19 +68,36 @@ func main() {
 	if err != nil {
 		panic("❌ Failed to parse public key: " + err.Error())
 	}
-	signature.RegisterPublicKey(validators[0].Address, pubKey)
-	signature.RegisterPublicKey(validators[1].Address, pubKey)
+
+	// Регистрируем публичные ключи для всех валидаторов
+	for i, v := range validators {
+		signature.RegisterPublicKey(v.Address, pubKey)
+		fmt.Printf("🔑 Public key registered for validator %s\n", v.Address)
+
+		// Для демонстрации — покажем адрес и стейк
+		fmt.Printf("🏷️ Validator %d: %s | Stake: %d\n", i+1, v.Address, v.Balance)
+	}
 
 	// ============ Инициализация защиты от 51% атак ============
 	validatorsMap := map[string]int64{
 		"validator1": 2000,
 		"validator2": 1000,
+		"validator3": 1500,
+		"validator4": 1200,
+		"validator5": 800,
 	}
+
 	guard := fiftyone.NewFiftyOnePercentGuard(validatorsMap)
 	go guard.Monitor(30 * time.Second) // запуск мониторинга
 
 	// ============ Инициализация защиты от Sybil ============
-	sybilGuard := sybil.NewSybilGuard([]string{"validator1", "validator2"})
+	sybilGuard := sybil.NewSybilGuard([]string{
+		"validator1",
+		"validator2",
+		"validator3",
+		"validator4",
+		"validator5",
+	})
 	peer.SetSybilGuard(sybilGuard)
 
 	// ========== Инициализация аудита безопасности ==========

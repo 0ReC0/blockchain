@@ -2,6 +2,7 @@ package fiftyone
 
 import (
 	"blockchain/security/audit"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -32,13 +33,14 @@ func SetAuditor(a *audit.SecurityAuditor) {
 func (g *FiftyOnePercentGuard) IsMajorityAttackPossible() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	for _, power := range g.ValidatorPower {
-		if power*100 > g.TotalPower*51/100 {
+
+	for validator, power := range g.ValidatorPower {
+		if power > g.TotalPower/2 {
 			auditor.RecordEvent(audit.SecurityEvent{
 				Timestamp: time.Now(),
 				Type:      "51PercentAttackRisk",
-				Message:   "Validator has >51% stake",
-				NodeID:    "validator1",
+				Message:   fmt.Sprintf("Validator %s has >50%% stake", validator),
+				NodeID:    validator,
 				Severity:  "CRITICAL",
 			})
 			return true
