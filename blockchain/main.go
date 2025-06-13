@@ -9,6 +9,7 @@ import (
 	"blockchain/consensus/bft"
 	"blockchain/consensus/manager"
 	"blockchain/consensus/pos"
+	"blockchain/network/peer"
 
 	// Хранилище
 	"blockchain/storage/blockchain"
@@ -91,10 +92,12 @@ func main() {
 		"validator1": 2000,
 		"validator2": 1000,
 	}
-	_ = fiftyone.NewFiftyOnePercentGuard(validatorsMap)
+	guard := fiftyone.NewFiftyOnePercentGuard(validatorsMap)
+	go guard.Monitor(30 * time.Second) // запуск мониторинга
 
 	// ============ Инициализация защиты от Sybil ============
-	_ = sybil.NewSybilGuard([]string{"validator1", "validator2"})
+	sybilGuard := sybil.NewSybilGuard([]string{"validator1", "validator2"})
+	peer.SetSybilGuard(sybilGuard)
 
 	// ============ Запуск P2P сети ============
 	go bft.StartTCPServer(bftNode)
@@ -124,11 +127,7 @@ func main() {
 
 	// ============ Запуск консенсуса ============
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		for {
-			<-ticker.C
-			switcher.StartConsensus()
-		}
+		switcher.Run()
 	}()
 
 	// ============ Запуск BFT-узлов ============

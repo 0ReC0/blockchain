@@ -20,9 +20,8 @@ func NewPeerManager() *PeerManager {
 
 var sybilGuard *sybil.SybilGuard
 
-func init() {
-	validators := []string{"validator1", "validator2"}
-	sybilGuard = sybil.NewSybilGuard(validators)
+func SetSybilGuard(guard *sybil.SybilGuard) {
+    sybilGuard = guard
 }
 
 func (pm *PeerManager) AddPeer(p *Peer) {
