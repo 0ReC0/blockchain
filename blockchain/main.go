@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	// Уровень консенсуса
+	// Консенсус
 	"blockchain/consensus/bft"
 	"blockchain/consensus/manager"
 	"blockchain/consensus/pos"
-
-	// Сеть
 
 	// Хранилище
 	"blockchain/storage/blockchain"
@@ -21,32 +19,30 @@ import (
 
 	// Безопасность
 	"blockchain/security/double_spend"
+	"blockchain/security/fiftyone"
+	"blockchain/security/sybil"
 
-	// Масштабируемость
-	"blockchain/scalability/parallel"
+	// Сеть
 
-	// API
+	// Интеграция (API)
 	"blockchain/integration/api"
 
 	// Говернанс
-
 	"blockchain/governance/upgrade"
 )
 
 func main() {
-	fmt.Println("🚀 Starting Blockchain Simulation System...")
+	fmt.Println("🚀 Starting Minimal Blockchain Node...")
 
 	// ============ Инициализация хранилища ============
 	chain := blockchain.NewBlockchain()
 	txPool := txpool.NewTransactionPool()
 
 	// ============ Инициализация валидаторов ============
-	// Список всех пиров
 	peerAddresses := []string{
 		"localhost:26656", // validator1
 		"localhost:26657", // validator2
 	}
-
 	validators := []*pos.Validator{
 		pos.NewValidatorWithAddress("validator1", peerAddresses[0], 2000),
 		pos.NewValidatorWithAddress("validator2", peerAddresses[1], 1000),
@@ -58,19 +54,14 @@ func main() {
 	if err != nil {
 		panic("❌ Failed to create signer: " + err.Error())
 	}
-	// ============ Инициализация тестовой транзакции ============
-	// Регистрация публичного ключа
-	// 2. Получаем публичный ключ в виде []byte
-	pubKeyBytes := signer.PublicKey()
-
-	// 3. Десериализуем его в *ecdsa.PublicKey
-	pubKey, err := signature.ParsePublicKey(pubKeyBytes)
+	pubKey, err := signature.ParsePublicKey(signer.PublicKey())
 	if err != nil {
-		panic("Failed to parse public key: " + err.Error())
+		panic("❌ Failed to parse public key: " + err.Error())
 	}
+	signature.RegisterPublicKey(validators[0].Address, pubKey)
+	signature.RegisterPublicKey(validators[1].Address, pubKey)
 
-	// ============ Инициализация BFT-ноды ============
-	// Создаём BFT-ноду с адресом и пеерами
+	// ============ Инициализация BFT-нод ============
 	bftNode := bft.NewBFTNode(
 		"validator1",
 		validators[0],
@@ -91,25 +82,24 @@ func main() {
 		peerAddresses[1],
 		peerAddresses,
 	)
-	// Регистрируем публичные ключи валидаторов
-	signature.RegisterPublicKey(validators[0].Address, pubKey)
-	signature.RegisterPublicKey(validators[1].Address, pubKey)
 
 	// ============ Инициализация ConsensusSwitcher ============
 	switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
 
-	// ============ Запуск консенсуса через ConsensusSwitcher ============
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		for {
-			<-ticker.C
-			switcher.StartConsensus()
-		}
-	}()
+	// ============ Инициализация защиты от 51% атак ============
+	validatorsMap := map[string]int64{
+		"validator1": 2000,
+		"validator2": 1000,
+	}
+	_ = fiftyone.NewFiftyOnePercentGuard(validatorsMap)
+
+	// ============ Инициализация защиты от Sybil ============
+	_ = sybil.NewSybilGuard([]string{"validator1", "validator2"})
 
 	// ============ Запуск P2P сети ============
 	go bft.StartTCPServer(bftNode)
 	go bft.StartTCPServer(bftNode2)
+
 	// ============ Запуск REST API ============
 	apiServer := api.NewAPIServer(chain, txPool)
 	go func() {
@@ -119,7 +109,7 @@ func main() {
 		}
 	}()
 
-	// ============ Запуск защиты от двойных трат ============
+	// ============ Запуск защиты от двойной траты ============
 	double_spend.InitSecurity()
 
 	// ============ Инициализация говернанса ============
@@ -132,27 +122,27 @@ func main() {
 		fmt.Println("⚠️ Upgrade failed:", err)
 	}
 
-	// ============ Инициализация масштабируемости ============
-	executor := parallel.NewParallelExecutor(4, 10)
-	if err := executor.ExecuteTransactions(txPool.GetTransactions(100), chain); err != nil {
-		fmt.Println("⚠️ Parallel execution failed:", err)
-	}
+	// ============ Запуск консенсуса ============
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		for {
+			<-ticker.C
+			switcher.StartConsensus()
+		}
+	}()
 
-	// ============ Запуск BFT-узла ============
-
-	// Запуск первой ноды
+	// ============ Запуск BFT-узлов ============
 	go func() {
 		time.Sleep(2 * time.Second)
 		bftNode.Start()
 	}()
-
-	// Запуск второй ноды
 	go func() {
 		time.Sleep(3 * time.Second)
 		bftNode2.Start()
 	}()
-	fmt.Println("✅ Blockchain system started. Waiting for connections...")
 
-	// ============ Бесконечный цикл для поддержания работы сервера ============
+	fmt.Println("✅ Node started. Waiting for connections...")
+
+	// ============ Бесконечный цикл для поддержания работы ============
 	select {}
 }
