@@ -32,6 +32,14 @@ func (p ValidatorPool) Select() *Validator {
 		balances[i] = v.Balance
 	}
 
+	if totalWeight == 0 {
+		return &Validator{
+			ID:      p[0].ID,
+			Address: p[0].Address,
+			Balance: p[0].Balance,
+		}
+	}
+
 	rand.Seed(time.Now().UnixNano())
 	r := rand.Float64() * totalWeight
 

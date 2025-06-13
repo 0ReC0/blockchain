@@ -116,7 +116,7 @@ func (n *BFTNode) RunConsensusRound() {
 		return
 	}
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	// 4. Precommit
 	if err := n.signAndBroadcast(round, gossip.StatePrecommit); err != nil {
