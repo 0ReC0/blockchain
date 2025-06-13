@@ -244,7 +244,6 @@ func main() {
 	}))
 
 	fmt.Println("🌍 Веб-интерфейс доступен на http://localhost:8000")
-	fmt.Println("🔗 Отправка тестовой транзакции: http://localhost:8000/sendtx")
 	err := http.ListenAndServe(":8000", nil)
 	if err != nil {
 		panic(err)

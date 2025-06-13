@@ -2,12 +2,12 @@
 package main
 
 import (
-	"encoding/hex"
 	"fmt"
 	"time"
 
 	// Уровень консенсуса
 	"blockchain/consensus/bft"
+	"blockchain/consensus/manager"
 	"blockchain/consensus/pos"
 
 	// Сеть
@@ -71,21 +71,6 @@ func main() {
 		panic("Failed to parse public key: " + err.Error())
 	}
 
-	// 4. Регистрируем публичный ключ
-	signature.RegisterPublicKey("A", pubKey)
-
-	// 5. Создаём и подписываем транзакцию
-	tx1 := txpool.NewTransaction("A", "B", 10)
-	txBytes := tx1.Serialize()
-	signatureBytes, err := signer.Sign(txBytes)
-	if err != nil {
-		panic("Failed to sign transaction: " + err.Error())
-	}
-	tx1.Signature = hex.EncodeToString(signatureBytes)
-
-	// 6. Добавляем в пул
-	txPool.AddTransaction(tx1)
-
 	// ============ Инициализация BFT-ноды ============
 	// Создаём BFT-ноду с адресом и пеерами
 	bftNode := bft.NewBFTNode(
@@ -113,16 +98,16 @@ func main() {
 	signature.RegisterPublicKey(validators[1].Address, pubKey)
 
 	// ============ Инициализация ConsensusSwitcher ============
-	// switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
+	switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
 
 	// ============ Запуск консенсуса через ConsensusSwitcher ============
-	// go func() {
-	// 	ticker := time.NewTicker(10 * time.Second)
-	// 	for {
-	// 		<-ticker.C
-	// 		switcher.StartConsensus()
-	// 	}
-	// }()
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		for {
+			<-ticker.C
+			switcher.StartConsensus()
+		}
+	}()
 
 	// ============ Запуск P2P сети ============
 	go bft.StartTCPServer(bftNode)
