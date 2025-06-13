@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -58,9 +59,29 @@ func (b *Block) TransactionsHash() string {
 }
 
 func (b *Block) Serialize() []byte {
+	type BlockWithSignature struct {
+		Index        int64
+		Timestamp    int64
+		PrevHash     string
+		Hash         string
+		Transactions []*txpool.Transaction
+		Validator    string
+		Nonce        string
+		Signature    []byte
+	}
+	temp := BlockWithSignature{
+		Index:        b.Index,
+		Timestamp:    b.Timestamp,
+		PrevHash:     b.PrevHash,
+		Hash:         b.Hash,
+		Transactions: b.Transactions,
+		Validator:    b.Validator,
+		Nonce:        b.Nonce,
+		Signature:    b.Signature,
+	}
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(b); err != nil {
+	if err := enc.Encode(temp); err != nil {
 		panic(err)
 	}
 	return buf.Bytes()
@@ -75,15 +96,14 @@ func (b *Block) Deserialize(data []byte) error {
 		Transactions []*txpool.Transaction
 		Validator    string
 		Nonce        string
+		Signature    []byte // ✅ Добавь поле Signature
 	}
-
 	var temp BlockTemp
 	buf := bytes.NewBuffer(data)
 	dec := gob.NewDecoder(buf)
 	if err := dec.Decode(&temp); err != nil {
 		return err
 	}
-
 	b.Index = temp.Index
 	b.Timestamp = temp.Timestamp
 	b.PrevHash = temp.PrevHash
@@ -91,7 +111,7 @@ func (b *Block) Deserialize(data []byte) error {
 	b.Transactions = temp.Transactions
 	b.Validator = temp.Validator
 	b.Nonce = temp.Nonce
-
+	b.Signature = temp.Signature // ✅ Сохраняем подпись
 	return nil
 }
 
@@ -106,17 +126,17 @@ type BlockWithoutSignature struct {
 }
 
 func (b *Block) SerializeWithoutSignature() []byte {
-	type BlockTemp struct {
-		Index        int64
-		Timestamp    int64
-		PrevHash     string
-		Hash         string
-		Transactions []*txpool.Transaction
-		Validator    string
-		Nonce        string
+	type blockData struct {
+		Index        int64                 `json:"index"`
+		Timestamp    int64                 `json:"timestamp"`
+		PrevHash     string                `json:"prev_hash"`
+		Hash         string                `json:"hash"`
+		Transactions []*txpool.Transaction `json:"transactions"`
+		Validator    string                `json:"validator"`
+		Nonce        string                `json:"nonce"`
 	}
 
-	temp := BlockTemp{
+	temp := blockData{
 		Index:        b.Index,
 		Timestamp:    b.Timestamp,
 		PrevHash:     b.PrevHash,
@@ -126,10 +146,9 @@ func (b *Block) SerializeWithoutSignature() []byte {
 		Nonce:        b.Nonce,
 	}
 
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(temp); err != nil {
+	data, err := json.Marshal(temp)
+	if err != nil {
 		panic(err)
 	}
-	return buf.Bytes()
+	return data
 }
