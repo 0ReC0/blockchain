@@ -9,10 +9,12 @@ import (
 	"time"
 
 	// Консенсус
+	"blockchain/consensus/bft"
 	"blockchain/consensus/manager"
 	"blockchain/consensus/pos"
 
 	// Сеть
+	"blockchain/network/gossip"
 	"blockchain/network/peer"
 
 	// Хранилище
@@ -39,9 +41,10 @@ func runNode(
 	txPool *txpool.TransactionPool,
 	chain *blockchain.Blockchain,
 	validator *pos.Validator,
-	validatorPool pos.ValidatorPool,
+	validatorPool pos.ValidatorPool, // ← изначально содержит всех валидаторов
 	peerAddresses []string,
 	index int,
+	validators []*pos.Validator, // ✅ Добавляем параметр
 ) {
 	// Загружаем свой сертификат и ключ
 	certPath := fmt.Sprintf("certs/validator%d.crt", index+1)
@@ -68,7 +71,7 @@ func runNode(
 	switcher.StartConsensus(
 		txPool,
 		chain,
-		[]*pos.Validator{validator},
+		validators, // ✅ Все валидаторы
 		validatorPool,
 		signer,
 		peerAddresses,
@@ -86,6 +89,11 @@ func main() {
 	defer chain.Close()
 
 	txPool := txpool.NewTransactionPool()
+
+	// Запуск очистки кэша дублированных транзакций
+	gossip.SeenTransactionsSet.StartCleanup(5 * time.Minute)
+	// Запуск очистки кэша обработанных сообщений
+	bft.SeenMessagesSet.StartCleanup(5 * time.Minute)
 
 	// ============ Инициализация валидаторов ============
 	peerAddresses := []string{
@@ -107,18 +115,9 @@ func main() {
 	validatorPool := pos.NewValidatorPool(validators)
 
 	// ============ Инициализация signer'а ============
-	signer, err := signature.NewECDSASigner()
-	if err != nil {
-		panic("❌ Failed to create signer: " + err.Error())
-	}
-
-	// Регистрируем публичные ключи для всех валидаторов
-	// certPaths := map[string]string{
-	// 	"localhost:26656": "certs/validator1.crt",
-	// 	"localhost:26657": "certs/validator2.crt",
-	// 	"localhost:26658": "certs/validator3.crt",
-	// 	"localhost:26659": "certs/validator4.crt",
-	// 	"localhost:26660": "certs/validator5.crt",
+	// signer, err := signature.NewECDSASigner()
+	// if err != nil {
+	// 	panic("❌ Failed to create signer: " + err.Error())
 	// }
 
 	for i, validator := range validators {
@@ -126,7 +125,7 @@ func main() {
 			os.Setenv("NODE_ADDRESS", v.Address)
 			time.Sleep(time.Duration(i) * 2 * time.Second)
 			fmt.Printf("🏷️ Starting validator node: %s\n", v.Address)
-			runNode(txPool, chain, v, *validatorPool, peerAddresses, i)
+			runNode(txPool, chain, v, *validatorPool, peerAddresses, i, validators)
 		}(i, validator)
 	}
 	// ============ Инициализация защиты от 51% атак ============
@@ -191,16 +190,16 @@ func main() {
 	}
 
 	// ============ Запуск консенсуса ============
-	switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
+	// switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
 
-	switcher.StartConsensus(
-		txPool,
-		chain,
-		validators,
-		*validatorPool,
-		signer,
-		peerAddresses,
-	)
+	// switcher.StartConsensus(
+	// 	txPool,
+	// 	chain,
+	// 	validators,
+	// 	*validatorPool,
+	// 	signer,
+	// 	peerAddresses,
+	// )
 
 	fmt.Println("✅ Node started. Waiting for connections...")
 

@@ -109,8 +109,21 @@ func (s *APIServer) handleAddTransaction(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Проверяем подпись
 	if !tx.Verify() {
 		http.Error(w, "Invalid transaction signature", http.StatusBadRequest)
+		return
+	}
+
+	// Проверяем, не была ли транзакция уже добавлена в пул
+	if s.TxPool.HasTransaction(tx.ID) {
+		http.Error(w, "Transaction already exists in pool", http.StatusBadRequest)
+		return
+	}
+
+	// Проверяем, не была ли транзакция уже включена в блок
+	if s.Chain.HasTransaction(tx.ID) {
+		http.Error(w, "Transaction already exists in blockchain", http.StatusBadRequest)
 		return
 	}
 

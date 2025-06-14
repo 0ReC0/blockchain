@@ -1,6 +1,7 @@
 package gossip
 
 import (
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -36,18 +37,26 @@ func DecodeConsensusMessage(data []byte) (*ConsensusMessage, error) {
 func HandleSignedMessage(data []byte) (*ConsensusMessage, error) {
 	msg, err := DecodeSignedMessage(data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode signed message: %v", err)
 	}
 
-	// 1. Проверяем подпись
+	// Проверяем, не была ли эта транзакция уже обработана
+	txHash := fmt.Sprintf("%x", sha256.Sum256(msg.Data))
+	if SeenTransactionsSet.Has(txHash) {
+		return nil, fmt.Errorf("transaction %s already processed", txHash)
+	}
+
+	// Проверяем подпись
 	pubKey, err := signature.LoadPublicKey(msg.From)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load public key for %s: %v", msg.From, err)
 	}
-
 	if !signature.Verify(pubKey, msg.Data, msg.Signature) {
 		return nil, fmt.Errorf("invalid signature from %s", msg.From)
 	}
+
+	// Помечаем как обработанную
+	SeenTransactionsSet.Add(txHash)
 
 	return &ConsensusMessage{
 		Type:   msg.Type,

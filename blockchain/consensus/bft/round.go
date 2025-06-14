@@ -13,6 +13,8 @@ type Round struct {
 	ProposedBlock []byte
 	Prevotes      map[string][]byte
 	Precommits    map[string][]byte
+	BlockHash     []byte // Новое поле
+
 }
 
 func NewRound(height, round int64, proposer string) *Round {
@@ -23,5 +25,6 @@ func NewRound(height, round int64, proposer string) *Round {
 		Proposer:   proposer,
 		Prevotes:   make(map[string][]byte),
 		Precommits: make(map[string][]byte),
+		BlockHash:  nil,
 	}
 }

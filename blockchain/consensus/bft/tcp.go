@@ -74,6 +74,13 @@ func handleConnection(conn net.Conn, bftNode *BFTNode) {
 
 // BroadcastMessage — отправка сообщения всем пеерам
 func BroadcastMessage(bftNode *BFTNode, msgType gossip.MessageType, data []byte) {
+	// Проверяем, не было ли это сообщение уже отправлено
+	if SeenMessagesSet.Has(data) {
+		fmt.Printf("⚠️ Not rebroadcasting known message of type %s\n", msgType)
+		return
+	}
+	SeenMessagesSet.Add(data)
+
 	msg := TcpMessage{
 		Type:      msgType,
 		From:      bftNode.Address,
@@ -81,17 +88,14 @@ func BroadcastMessage(bftNode *BFTNode, msgType gossip.MessageType, data []byte)
 		Timestamp: time.Now().UnixNano(),
 	}
 	msgBytes, _ := json.Marshal(msg)
-
 	for _, peer := range bftNode.Peers {
 		go func(addr string) {
-			// Используем клиентский TLS-конфиг
 			conn, err := tls.Dial("tcp", addr, p2p.GenerateClientTLSConfig())
 			if err != nil {
 				fmt.Printf("❌ Can't connect to peer %s: %v\n", addr, err)
 				return
 			}
 			defer conn.Close()
-
 			_, err = conn.Write(msgBytes)
 			if err != nil {
 				fmt.Printf("❌ Failed to send message to %s: %v\n", addr, err)

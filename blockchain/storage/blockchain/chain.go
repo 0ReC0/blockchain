@@ -138,6 +138,12 @@ func (bc *Blockchain) AddBlock(block *Block) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
+	// Проверяем, существует ли уже блок с таким хэшем
+	if bc.HasBlock(block.Hash) {
+		fmt.Printf("❌ Block with hash %s already exists\n", block.Hash)
+		return
+	}
+
 	err := bc.db.Update(func(txn *badger.Txn) error {
 		data := block.Serialize()
 		return txn.Set([]byte(block.Hash), data)
@@ -146,4 +152,52 @@ func (bc *Blockchain) AddBlock(block *Block) {
 	if err != nil {
 		fmt.Println("❌ Failed to save block to BadgerDB:", err)
 	}
+}
+func (bc *Blockchain) HasBlock(hash string) bool {
+	var exists bool
+	bc.db.View(func(txn *badger.Txn) error {
+		_, err := txn.Get([]byte(hash))
+		exists = err == nil
+		return nil
+	})
+	return exists
+}
+
+// HasTransaction проверяет, существует ли транзакция с данным ID в цепочке
+func (bc *Blockchain) HasTransaction(txID string) bool {
+	var exists bool
+	err := bc.db.View(func(txn *badger.Txn) error {
+		// Итерируем по всем блокам
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			val, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+
+			block := &Block{}
+			if err := block.Deserialize(val); err != nil {
+				return err
+			}
+
+			// Проверяем транзакции в блоке
+			for _, tx := range block.Transactions {
+				if tx.ID == txID {
+					exists = true
+					return nil
+				}
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("❌ Failed to check transaction existence: %v\n", err)
+	}
+
+	return exists
 }

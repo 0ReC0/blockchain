@@ -37,6 +37,7 @@ type ecdsaSignature struct {
 	R, S *big.Int
 }
 
+// Sign — подписывает данные с использованием ECDSA и возвращает подпись в DER-формате
 func (e *ECDSASigner) Sign(data []byte) ([]byte, error) {
 	hash := sha256.Sum256(data)
 	r, s, err := ecdsa.Sign(rand.Reader, e.privateKey, hash[:])
@@ -48,16 +49,18 @@ func (e *ECDSASigner) Sign(data []byte) ([]byte, error) {
 	return asn1.Marshal(ecdsaSignature{R: r, S: s})
 }
 
+// Verify — проверяет подпись (в DER-формате) для заданных данных
 func (e *ECDSASigner) Verify(data, signature []byte) bool {
 	hash := sha256.Sum256(data)
 
 	// Десериализуем подпись
 	sig := new(ecdsaSignature)
-	_, err := asn1.Unmarshal(signature, sig)
-	if err != nil {
+	rest, err := asn1.Unmarshal(signature, sig)
+	if err != nil || len(rest) != 0 {
 		return false
 	}
 
+	// Проверяем подпись
 	return ecdsa.Verify(e.publicKey, hash[:], sig.R, sig.S)
 }
 

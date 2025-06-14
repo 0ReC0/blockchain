@@ -1,6 +1,7 @@
 package txpool
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -29,23 +30,41 @@ func (p *TransactionPool) AddTransaction(tx *Transaction) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if !doubleSpendGuard.CheckAndMark(tx.ID) {
-		// Транзакция является двойной тратой — не добавляем
+	// Проверяем, есть ли уже такая транзакция в пуле
+	if _, exists := p.Transactions[tx.ID]; exists {
+		fmt.Printf("❌ Transaction %s already exists in pool\n", tx.ID)
 		return
 	}
+
+	// Проверяем, не является ли это двойной тратой
+	if !doubleSpendGuard.CheckAndMark(tx.ID) {
+		fmt.Printf("❌ Double spend detected for transaction %s\n", tx.ID)
+		return
+	}
+
 	p.Transactions[tx.ID] = tx
+	fmt.Printf("📥 Transaction %s added to pool\n", tx.ID)
 }
 func (p *TransactionPool) GetTransactions(limit int) []*Transaction {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	var list []*Transaction
+	seen := make(map[string]bool)
+
 	for _, tx := range p.Transactions {
+		if seen[tx.ID] {
+			continue
+		}
+
 		list = append(list, tx)
+		seen[tx.ID] = true
+
 		if len(list) >= limit {
 			break
 		}
 	}
+
 	return list
 }
 
@@ -59,4 +78,12 @@ func (p *TransactionPool) Flush() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.Transactions = make(map[string]*Transaction)
+}
+
+// HasTransaction проверяет, существует ли транзакция с данным ID в пуле
+func (p *TransactionPool) HasTransaction(txID string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	_, exists := p.Transactions[txID]
+	return exists
 }

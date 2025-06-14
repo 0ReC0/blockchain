@@ -12,11 +12,14 @@ import (
 func Verify(pub *ecdsa.PublicKey, data, sig []byte) bool {
 	hash := sha256.Sum256(data)
 
-	// Десериализуем DER
+	// Структура для десериализации DER-подписи
 	var rs struct {
 		R, S *big.Int
 	}
-	if _, err := asn1.Unmarshal(sig, &rs); err != nil {
+
+	// Декодируем DER-подпись
+	rest, err := asn1.Unmarshal(sig, &rs)
+	if err != nil || len(rest) != 0 {
 		fmt.Printf("❌ Failed to parse DER signature: %v\n", err)
 		return false
 	}

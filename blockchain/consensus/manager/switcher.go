@@ -59,7 +59,7 @@ func (cs *ConsensusSwitcher) startPoS(
 ) {
 	for {
 		// Выбираем валидатора через пул
-		selectedValidator := validatorPool.Select()
+		selectedValidator := validatorPool.Select(int64(0))
 		if selectedValidator == nil {
 			time.Sleep(5 * time.Second)
 			continue
@@ -85,6 +85,18 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 		return
 	}
 
+	// Проверяем, не были ли эти транзакции уже включены в блок
+	var newTransactions []*txpool.Transaction
+	for _, tx := range transactions {
+		if !chain.HasTransaction(tx.ID) {
+			newTransactions = append(newTransactions, tx)
+		}
+	}
+
+	if len(newTransactions) == 0 {
+		return
+	}
+
 	// Получаем последний блок из БД
 	prevBlock := chain.GetLatestBlock()
 	if prevBlock == nil {
@@ -96,7 +108,7 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 		Index:        prevBlock.Index + 1,
 		Timestamp:    time.Now().Unix(),
 		PrevHash:     prevBlock.Hash,
-		Transactions: transactions,
+		Transactions: newTransactions,
 		Validator:    validator.Address,
 	}
 	block.Hash = block.CalculateHash()
@@ -107,7 +119,7 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 	chain.AddBlock(block)
 
 	// Удаляем транзакции из пула
-	for _, tx := range transactions {
+	for _, tx := range newTransactions {
 		txPool.RemoveTransaction(tx.ID)
 	}
 
@@ -137,8 +149,8 @@ func (cs *ConsensusSwitcher) startBFT(
 				peerAddresses[i],
 				peerAddresses,
 			)
+			fmt.Printf("✅ [%s] BFT Node started\n", validators[i].Address)
 			bftNode.Start()
-			fmt.Printf("✅ BFT Node %s started\n", validators[i].Address)
 		}()
 	}
 }
