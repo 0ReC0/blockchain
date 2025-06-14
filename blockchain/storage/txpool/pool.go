@@ -33,15 +33,17 @@ func (p *TransactionPool) AddTransaction(tx *Transaction) {
 		// Транзакция является двойной тратой — не добавляем
 		return
 	}
-	p.Transactions[tx.ID] = tx
+	if _, exists := p.Transactions[tx.ID]; !exists {
+		p.Transactions[tx.ID] = tx
+	}
 }
 func (p *TransactionPool) GetTransactions(limit int) []*Transaction {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
 	var list []*Transaction
-	for _, tx := range p.Transactions {
+	for id, tx := range p.Transactions {
 		list = append(list, tx)
+		delete(p.Transactions, id) // Удаляем сразу при взятии
 		if len(list) >= limit {
 			break
 		}

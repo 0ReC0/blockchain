@@ -25,6 +25,7 @@ cd Blockchain
 Система использует TLS для безопасного P2P-соединения. Необходимо сгенерировать сертификаты:
 
 ```bash
+cd blockchain
 mkdir -p certs
 openssl genrsa -out certs/ca.key 4096
 openssl req -new -x509 -days 365 -key certs/ca.key -out certs/ca.crt -subj "/CN=Test CA"
