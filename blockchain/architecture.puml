@@ -1,80 +1,90 @@
 @startuml
 skinparam componentStyle rectangle
-skinparam packageStyle rectangle
-hide empty members
 
-package "Минималистичная блокчейн-система" {
-  package "Сетевой уровень" as NetworkLayer {
-    [P2P-сеть] as P2PNetwork
-    [Gossip/RPC] as GossipRPC
-    [PeerManager] as PeerManager
-    [NetworkMonitor] as NetworkMonitor
-  }
-
-  package "Уровень консенсуса" as ConsensusLayer {
-    [PoS Validator] as PoSValidator
-    [BFT Engine] as BFTEngine
-    [Consensus Switcher] as ConsensusSwitcher
-    [Consensus Strategy] as ConsensusStrategy
-    [Consensus Monitor] as ConsensusMonitor
-  }
-
-  package "Хранилище" as StorageLayer {
-    [Блокчейн] as BlockchainDB
-    [TxPool] as TxPool
-    [BlockVerifier] as BlockVerifier
-  }
-
-  package "Криптография" as CryptoLayer {
-    [ECDSA Подписи] as SignatureModule
-    [KeyManager] as KeyManager
-  }
-
-  package "Безопасность" as SecurityLayer {
-    [Double Spend Guard] as DoubleSpendGuard
-    [Sybil Guard] as SybilGuard
-    [51% Defense] as FiftyOnePercentGuard
-    [Security Auditor] as AuditLogs
-  }
-
-  package "Говернанс" as GovernanceLayer {
-    [Upgrade Manager] as UpgradeManager
-    [Reputation System] as ReputationSystem
-    [Proposal Manager] as ProposalManager
-    [Voting Manager] as VotingManager
-  }
-
-  package "Интеграция" as IntegrationLayer {
-    [REST API] as RESTAPI
-    [JSON-RPC] as JSONRPC
-  }
+package "Основные модули" {
+  [Блокчейн] as blockchain
+  [Пул транзакций] as txpool
 }
 
-' Связи между слоями
-P2PNetwork --> ConsensusSwitcher
-GossipRPC --> PeerManager
-PeerManager --> P2PNetwork
+package "Консенсус" {
+  [Переключатель консенсуса] as switcher
+  [PoS] as pos
+  [BFT] as bft
+}
 
-ConsensusSwitcher --> PoSValidator
-ConsensusSwitcher --> BFTEngine
-PoSValidator --> SignatureModule
-BFTEngine --> SignatureModule
-BFTEngine --> GossipRPC
+package "Валидаторы и репутация" {
+  [Валидатор] as validator
+  [Пул валидаторов] as validator_pool
+  [Система репутации] as reputation
+}
 
-TxPool --> BlockVerifier
-BlockchainDB --> BlockVerifier
+package "Безопасность" {
+  [Защита от двойной траты] as double_spend
+  [Защита от 51% атаки] as fiftyone
+  [Защита от Sybil-атак] as sybil
+  [Система аудита безопасности] as auditor
+}
 
-SignatureModule --> AuditLogs
+package "Сеть (P2P)" {
+  [Менеджер пиров] as peer_mgr
+  [Протокол Gossip] as gossip
+  [TCP/SSL] as tcp
+}
 
-DoubleSpendGuard --> TxPool
-SybilGuard --> PeerManager
-FiftyOnePercentGuard --> ConsensusSwitcher
-AuditLogs --> UpgradeManager
+package "API" {
+  [REST API] as rest_api
+}
 
-UpgradeManager --> ConsensusSwitcher
+package "Говернанс" {
+  [Менеджер обновлений] as upgrade_mgr
+  [Система предложений] as proposal
+}
 
-RESTAPI --> TxPool
-RESTAPI --> BlockchainDB
-RESTAPI --> AuditLogs
+package "Криптография" {
+  [Подпись и проверка] as signature
+}
 
+' ---- Основные связи ----
+blockchain --> txpool
+switcher --> pos
+switcher --> bft
+
+' ---- Консенсус и валидаторы ----
+pos --> validator_pool : "выбор валидатора"
+bft --> validator_pool : "выбор валидатора"
+validator_pool "1..N" --> validator : "валидаторы"
+validator_pool --> reputation : "вес = баланс * репутация"
+
+' ---- Безопасность ----
+double_spend --> auditor : "обнаружение двойной траты"
+fiftyone --> auditor : "обнаружение 51% атаки"
+sybil --> auditor : "обнаружение Sybil-атак"
+auditor --> rest_api : "логи безопасности"
+
+' ---- Сеть ----
+peer_mgr --> gossip : "управление пеерами"
+gossip --> tcp : "передача данных"
+gossip --> bft : "сообщения консенсуса"
+
+' ---- API ----
+rest_api --> blockchain : "запрос блоков"
+rest_api --> txpool : "добавление транзакций"
+rest_api --> switcher : "управление консенсусом"
+rest_api --> validator_pool : "информация о валидаторах"
+rest_api --> auditor : "логи безопасности"
+rest_api --> signature : "регистрация ключей"
+
+' ---- Говернанс ----
+upgrade_mgr --> proposal : "создание предложения"
+proposal --> reputation : "оценка валидаторов"
+
+' ---- Криптография ----
+signature --> validator : "подпись блоков"
+signature --> bft : "подпись сообщений"
+signature --> rest_api : "проверка подлинности"
+
+' ---- Обратные связи ----
+blockchain --> switcher
+txpool --> switcher
+validator_pool --> switcher
 @enduml
