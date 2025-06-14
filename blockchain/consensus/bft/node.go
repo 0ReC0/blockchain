@@ -1,7 +1,5 @@
 package bft
 
-// точка входа узла
-
 import (
 	"blockchain/network/gossip"
 	"blockchain/network/p2p"
@@ -14,65 +12,53 @@ import (
 	"time"
 )
 
+// Node представляет узел в BFT-сети
 type Node struct {
 	ID      string
 	Addr    string
 	PeerMgr *peer.PeerManager
-	TxPool  *txpool.TransactionPool // Добавляем пул транзакций
-	Chain   *blockchain.Blockchain  // Добавлено
-
+	TxPool  *txpool.TransactionPool
+	Chain   *blockchain.Blockchain
 }
 
-func (n *Node) PerformHandshake(conn *tls.Conn) error {
-	hs := p2p.NewHandshake(n.ID)
-	data, _ := hs.Serialize()
-	_, err := conn.Write(data)
-	if err != nil {
-		return err
-	}
-
-	// Read response
-	buf := make([]byte, 1024)
-	bytesRead, err := conn.Read(buf)
-	remoteHS, err := p2p.DeserializeHandshake(buf[:bytesRead])
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Handshake with %s successful\n", remoteHS.NodeID)
-	return nil
-}
-
-func NewNode(id, addr string, txPool *txpool.TransactionPool, chain *blockchain.Blockchain) *Node {
+// NewNode создаёт новый узел
+func NewNode(id string, addr string, txPool *txpool.TransactionPool, chain *blockchain.Blockchain) *Node {
 	return &Node{
 		ID:      id,
 		Addr:    addr,
-		PeerMgr: peer.NewPeerManager(),
 		TxPool:  txPool,
 		Chain:   chain,
+		PeerMgr: peer.NewPeerManager(),
 	}
 }
 
+// Start запускает узел
 func (n *Node) Start() {
-	fmt.Printf("Node %s started at %s\n", n.ID, n.Addr)
+	log.Printf("Node %s started at %s", n.ID, n.Addr)
 	go n.listenTLS()
 }
+
+// listenTLS запускает TLS-сервер
 func (n *Node) listenTLS() {
-	config := p2p.GenerateClientTLSConfig() // ← передаем адрес
+	config := p2p.GenerateClientTLSConfig()
 	listener, err := tls.Listen("tcp", n.Addr, config)
 	if err != nil {
-		log.Fatalf("Failed to start TLS listener: %v", err)
+		log.Fatalf("❌ Failed to start TLS listener: %v", err)
 	}
+	defer listener.Close()
+
+	log.Printf("✅ TLS listener started on %s", n.Addr)
+
 	for {
 		rawConn, err := listener.Accept()
 		if err != nil {
-			log.Printf("Failed to accept connection: %v", err)
+			log.Printf("❌ Failed to accept connection: %v", err)
 			continue
 		}
 
-		// Приводим net.Conn к *tls.Conn
 		tlsConn, ok := rawConn.(*tls.Conn)
 		if !ok {
-			log.Println("Connection is not a TLS connection")
+			log.Println("❌ Connection is not a TLS connection")
 			rawConn.Close()
 			continue
 		}
@@ -81,11 +67,12 @@ func (n *Node) listenTLS() {
 	}
 }
 
+// handleSecureConnection обрабатывает безопасное соединение
 func (n *Node) handleSecureConnection(conn *tls.Conn) {
 	defer conn.Close()
 
 	if err := n.PerformHandshake(conn); err != nil {
-		fmt.Printf("Handshake failed: %v\n", err)
+		log.Printf("❌ Handshake failed: %v", err)
 		return
 	}
 
@@ -93,14 +80,13 @@ func (n *Node) handleSecureConnection(conn *tls.Conn) {
 		buf := make([]byte, 4096)
 		nBytes, err := conn.Read(buf)
 		if err != nil {
-			fmt.Printf("Connection closed: %v\n", err)
+			log.Printf("❌ Connection closed: %v", err)
 			return
 		}
 
 		msg, err := gossip.DecodeConsensusMessage(buf[:nBytes])
 		if err != nil {
-			// Обработка сообщений консенсуса
-			go n.handleConsensusMessage(msg)
+			log.Printf("❌ Failed to decode consensus message: %v", err)
 			return
 		}
 
@@ -108,96 +94,111 @@ func (n *Node) handleSecureConnection(conn *tls.Conn) {
 		case gossip.MsgPing:
 			n.handlePing(conn, msg)
 		case gossip.MsgPong:
-			fmt.Printf("Received pong from %s\n", msg.From)
+			log.Printf("🧾 Received pong from %s", msg.From)
+		case gossip.StatePropose, gossip.StatePrevote, gossip.StatePrecommit, gossip.MsgBlock:
+			go n.handleConsensusMessage(msg)
 		default:
-			fmt.Printf("Received message from %s: %s\n", msg.From, msg.Type)
+			log.Printf("🧾 Received unknown message type: %s from %s", msg.Type, msg.From)
 		}
-	}
-}
-func (n *Node) handleConsensusMessage(msg *gossip.ConsensusMessage) {
-	switch msg.Type {
-	case gossip.StatePropose:
-		block := n.CreateBlockFromPool() // Используем пул
-		if block == nil {
-			return
-		}
-		// Отправляем блок другим узлам
-		n.BroadcastBlock(block)
-	case gossip.MsgVote:
-		// Обработка голосов
 	}
 }
 
+// PerformHandshake выполняет рукопожатие с пиром
+func (n *Node) PerformHandshake(conn *tls.Conn) error {
+	hs := p2p.NewHandshake(n.ID)
+	data, err := hs.Serialize()
+	if err != nil {
+		return fmt.Errorf("❌ failed to serialize handshake: %w", err)
+	}
+
+	_, err = conn.Write(data)
+	if err != nil {
+		return fmt.Errorf("❌ failed to send handshake: %w", err)
+	}
+
+	// Чтение ответа
+	buf := make([]byte, 1024)
+	bytesRead, err := conn.Read(buf)
+	if err != nil {
+		return fmt.Errorf("❌ failed to read handshake response: %w", err)
+	}
+
+	remoteHS, err := p2p.DeserializeHandshake(buf[:bytesRead])
+	if err != nil {
+		return fmt.Errorf("❌ failed to deserialize handshake: %w", err)
+	}
+
+	log.Printf("🤝 Handshake with %s successful", remoteHS.NodeID)
+	return nil
+}
+
+// handlePing обрабатывает сообщение Ping
 func (n *Node) handlePing(conn *tls.Conn, msg *gossip.ConsensusMessage) {
-	fmt.Printf("Received ping from %s\n", msg.From)
+	log.Printf("🧾 Received ping from %s", msg.From)
 
-	// Отправляем pong
 	pong := &gossip.ConsensusMessage{
 		Type:   gossip.MsgPong,
 		From:   n.ID,
 		Height: msg.Height,
 		Round:  msg.Round,
 	}
-	data, _ := pong.Encode()
 
-	_, err := conn.Write(data)
+	data, err := pong.Encode()
 	if err != nil {
-		fmt.Printf("Failed to send pong: %v\n", err)
-	}
-}
-func (n *Node) BroadcastBlock(block *blockchain.Block) {
-	// Создаём сообщение с типом MsgBlock
-	msg := &gossip.ConsensusMessage{
-		Type:   gossip.MsgBlock,
-		From:   n.ID,
-		Height: block.Index,
-		Round:  0, // Можно улучшить позже
-		Block:  block,
-	}
-
-	data, err := msg.Encode()
-	if err != nil {
-		fmt.Printf("Failed to encode block message: %v\n", err)
+		log.Printf("❌ Failed to encode pong message: %v", err)
 		return
 	}
 
-	// Отправляем блок всем пеерам
-	for _, peer := range n.PeerMgr.GetPeers() {
-		_, err := peer.Connection.Write(data)
-		if err != nil {
-			fmt.Printf("Failed to send block to %s: %v\n", peer.ID, err)
-		}
+	_, err = conn.Write(data)
+	if err != nil {
+		log.Printf("❌ Failed to send pong: %v", err)
 	}
 }
 
+// handleConsensusMessage обрабатывает сообщения консенсуса
+func (n *Node) handleConsensusMessage(msg *gossip.ConsensusMessage) {
+	switch msg.Type {
+	case gossip.StatePropose:
+		block := n.CreateBlockFromPool()
+		if block == nil {
+			return
+		}
+		n.BroadcastBlock(block)
+	case gossip.MsgBlock:
+		log.Printf("🧾 Received block from %s", msg.From)
+		// TODO: добавить валидацию и добавление блока в цепочку
+	case gossip.MsgVote:
+		log.Printf("🧾 Received vote from %s", msg.From)
+		// TODO: обработать голос
+	default:
+		log.Printf("🧾 Unknown consensus message type: %s", msg.Type)
+	}
+}
+
+// CreateBlockFromPool создаёт новый блок из пула транзакций
 func (n *Node) CreateBlockFromPool() *blockchain.Block {
-	// 1. Получаем транзакции из пула
 	txs := n.TxPool.GetTransactions(100)
 	var validTxs []*txpool.Transaction
 
-	// 2. Проверяем каждую транзакцию
 	for _, tx := range txs {
 		if !tx.Verify() {
-			fmt.Printf("Invalid transaction: %s\n", tx.ID)
+			log.Printf("🧾 Invalid transaction: %s", tx.ID)
 			continue
 		}
 		validTxs = append(validTxs, tx)
 	}
 
-	// 3. Если нет валидных транзакций — не создаём блок
 	if len(validTxs) == 0 {
-		fmt.Println("No valid transactions to propose")
+		log.Println("🧾 No valid transactions to propose")
 		return nil
 	}
 
-	// 4. Получаем последний блок из цепочки
 	latestBlock := n.Chain.GetLatestBlock()
 	if latestBlock == nil {
-		fmt.Println("Chain is empty or invalid")
+		log.Println("🧾 Chain is empty or invalid")
 		return nil
 	}
 
-	// 5. Создаём новый блок
 	newBlock := &blockchain.Block{
 		Index:        latestBlock.Index + 1,
 		Timestamp:    time.Now().Unix(),
@@ -206,8 +207,31 @@ func (n *Node) CreateBlockFromPool() *blockchain.Block {
 		Validator:    n.ID,
 	}
 
-	// 6. Вычисляем хеш блока
 	newBlock.Hash = newBlock.CalculateHash()
-
+	log.Printf("✅ Block %d created with %d transactions", newBlock.Index, len(validTxs))
 	return newBlock
+}
+
+// BroadcastBlock рассылает блок всем пеерам
+func (n *Node) BroadcastBlock(block *blockchain.Block) {
+	msg := &gossip.ConsensusMessage{
+		Type:   gossip.MsgBlock,
+		From:   n.ID,
+		Height: block.Index,
+		Round:  0, // TODO: улучшить логику раундов
+		Block:  block,
+	}
+
+	data, err := msg.Encode()
+	if err != nil {
+		log.Printf("❌ Failed to encode block message: %v", err)
+		return
+	}
+
+	for _, peer := range n.PeerMgr.GetPeers() {
+		_, err := peer.Connection.Write(data)
+		if err != nil {
+			log.Printf("❌ Failed to send block to %s: %v", peer.ID, err)
+		}
+	}
 }

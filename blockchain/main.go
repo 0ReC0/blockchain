@@ -76,6 +76,12 @@ func runNode(
 		signer,
 		peerAddresses,
 	)
+
+	// ==== Запуск сети BFT ==== //
+	nodeID := fmt.Sprintf("validator%d", index+1)
+	nodePort := fmt.Sprintf(":%d", 3000+index)
+
+	bft.StartNetwork(txPool, chain, nodeID, nodePort)
 }
 
 func main() {
@@ -188,18 +194,6 @@ func main() {
 	if err := upgradeMgr.ApplyUpgrade(); err != nil {
 		fmt.Println("⚠️ Upgrade failed:", err)
 	}
-
-	// ============ Запуск консенсуса ============
-	// switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
-
-	// switcher.StartConsensus(
-	// 	txPool,
-	// 	chain,
-	// 	validators,
-	// 	*validatorPool,
-	// 	signer,
-	// 	peerAddresses,
-	// )
 
 	fmt.Println("✅ Node started. Waiting for connections...")
 

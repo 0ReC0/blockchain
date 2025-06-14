@@ -20,15 +20,34 @@ func BroadcastPresence(addr string) {
 }
 
 func ListenForPeers() {
-	listener, _ := net.ListenUDP("udp", &net.UDPAddr{Port: 30000})
-	buf := make([]byte, 1024)
-
-	for {
-		n, _, _ := listener.ReadFromUDP(buf)
-		msg := string(buf[:n])
-		if len(msg) > 11 && msg[:11] == "NODE_PRESENT" {
-			addr := msg[12:]
-			fmt.Printf("Discovered peer: %s\n", addr)
-		}
+	if udpConn == nil {
+		panic("❌ UDP socket not initialized")
 	}
+
+	buf := make([]byte, 1024)
+	for {
+		n, addr, err := udpConn.ReadFromUDP(buf)
+		if err != nil {
+			fmt.Printf("❌ UDP read error: %v\n", err)
+			continue
+		}
+		fmt.Printf("📬 Received from %s: %s\n", addr, string(buf[:n]))
+	}
+}
+
+var udpConn *net.UDPConn
+
+// InitUDPSocket инициализирует UDP-сокет на указанном порту
+func InitUDPSocket(port string) {
+	addr, err := net.ResolveUDPAddr("udp", port)
+	if err != nil {
+		panic(fmt.Sprintf("❌ Failed to resolve UDP address: %v", err))
+	}
+
+	udpConn, err = net.ListenUDP("udp", addr)
+	if err != nil {
+		panic(fmt.Sprintf("❌ Failed to start UDP listener: %v", err))
+	}
+
+	fmt.Printf("📡 UDP listener started on %s\n", port)
 }

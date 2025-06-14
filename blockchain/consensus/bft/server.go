@@ -1,7 +1,5 @@
 package bft
 
-// запуск узла
-
 import (
 	"blockchain/network/gossip"
 	"blockchain/network/peer"
@@ -9,22 +7,27 @@ import (
 	"blockchain/storage/txpool"
 )
 
-func StartNetwork(txPool *txpool.TransactionPool) {
-	// Создаём блокчейн
-	chain := blockchain.NewBlockchain()
+// StartNetwork запускает узел BFT с переданными txPool и chain
+func StartNetwork(
+	txPool *txpool.TransactionPool,
+	chain *blockchain.Blockchain,
+	nodeID string,
+	nodePort string,
+) {
+	node := NewNode(nodeID, nodePort, txPool, chain)
 
-	// Создаём узел с передачей всех необходимых аргументов
-	node := NewNode("node1", ":3000", txPool, chain)
-
-	// Добавляем пир
+	// Добавляем пир (для примера)
 	node.PeerMgr.AddPeer(peer.NewPeer("peer1", ":3001", nil))
 
 	// Запуск узла
 	node.Start()
 
-	// Запуск сетевых горутин
+	// === Добавьте инициализацию UDP перед запуском горутин ===
+	peer.InitUDPSocket(nodePort) // инициализируем UDP-сокет на порту узла
+
+	// Горутины для сети
 	go peer.BroadcastPresence(node.Addr)
-	go peer.ListenForPeers()
+	go peer.ListenForPeers() // теперь это безопасно
 
 	// Отправка тестового блока
 	msg := &gossip.GossipMessage{

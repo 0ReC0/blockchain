@@ -2,14 +2,13 @@
 package manager
 
 import (
-	"fmt"
-	"time"
-
 	"blockchain/consensus/bft"
 	"blockchain/consensus/pos"
 	"blockchain/crypto/signature"
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
+	"fmt"
+	"time"
 )
 
 type ConsensusType string
@@ -47,8 +46,6 @@ func (cs *ConsensusSwitcher) StartConsensus(
 	}
 }
 
-// ===== PoS =====
-
 func (cs *ConsensusSwitcher) startPoS(
 	txPool *txpool.TransactionPool,
 	chain *blockchain.Blockchain,
@@ -58,18 +55,15 @@ func (cs *ConsensusSwitcher) startPoS(
 	peerAddresses []string,
 ) {
 	for {
-		// Выбираем валидатора через пул
 		selectedValidator := validatorPool.Select(int64(0))
 		if selectedValidator == nil {
 			time.Sleep(5 * time.Second)
 			continue
 		}
-
 		go func(v *pos.Validator) {
 			fmt.Printf("⛏️ PoS Validator %s started\n", v.Address)
 			cs.simulatePoSBlockCreation(chain, txPool, v, signer)
 		}(selectedValidator)
-
 		time.Sleep(10 * time.Second)
 	}
 }
@@ -84,26 +78,20 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 	if len(transactions) == 0 {
 		return
 	}
-
-	// Проверяем, не были ли эти транзакции уже включены в блок
 	var newTransactions []*txpool.Transaction
 	for _, tx := range transactions {
 		if !chain.HasTransaction(tx.ID) {
 			newTransactions = append(newTransactions, tx)
 		}
 	}
-
 	if len(newTransactions) == 0 {
 		return
 	}
-
-	// Получаем последний блок из БД
 	prevBlock := chain.GetLatestBlock()
 	if prevBlock == nil {
 		fmt.Println("❌ Cannot create new block: no previous block found")
 		return
 	}
-
 	block := &blockchain.Block{
 		Index:        prevBlock.Index + 1,
 		Timestamp:    time.Now().Unix(),
@@ -114,19 +102,12 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 	block.Hash = block.CalculateHash()
 	signatureBytes, _ := signer.Sign(block.SerializeWithoutSignature())
 	block.Signature = signatureBytes
-
-	// Добавляем блок в БД
 	chain.AddBlock(block)
-
-	// Удаляем транзакции из пула
 	for _, tx := range newTransactions {
 		txPool.RemoveTransaction(tx.ID)
 	}
-
 	fmt.Printf("✅ Block %d created by PoS validator %s\n", block.Index, validator.Address)
 }
-
-// ===== BFT =====
 
 func (cs *ConsensusSwitcher) startBFT(
 	txPool *txpool.TransactionPool,

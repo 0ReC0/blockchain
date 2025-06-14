@@ -68,7 +68,7 @@ func handleConnection(conn net.Conn, bftNode *BFTNode) {
 	handler := NewBFTMessageHandler(bftNode)
 
 	// Обрабатываем сообщение
-	fmt.Printf("📥 Received message from %s: %s\n", msg.From, msg.Type)
+	// fmt.Printf("📥 Received message from %s: %s\n", msg.From, msg.Type)
 	handler.ProcessMessage(&msg)
 }
 

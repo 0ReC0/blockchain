@@ -1,14 +1,18 @@
 package bft
 
 import (
+	"crypto/ecdsa"
 	"crypto/sha256"
+	"crypto/tls"
 	"fmt"
+	"log"
 	"time"
 
 	"blockchain/consensus/pos"
 	"blockchain/crypto/signature"
 	"blockchain/governance/reputation"
 	"blockchain/network/gossip"
+	"blockchain/network/p2p"
 	"blockchain/network/peer"
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
@@ -42,10 +46,10 @@ func NewBFTNode(
 	peers []string,
 ) *BFTNode {
 	if chain == nil {
-		panic("chain is nil")
+		log.Fatal("chain is nil")
 	}
 	if txPool == nil {
-		panic("txPool is nil")
+		log.Fatal("txPool is nil")
 	}
 
 	return &BFTNode{
@@ -86,60 +90,51 @@ func (n *BFTNode) IsValidator(addr string) bool {
 
 // RunConsensusRound реализует полный раунд Tendermint-подобного консенсуса
 func (n *BFTNode) RunConsensusRound() {
-	var proposer *pos.Validator
+	// Синхронизируем высоту с другими узлами, если отстаём
+	n.SyncHeight()
 
-	// Если раунд уже начат и пропосер задан — не выбираем заново
-	if n.CurrentRound == nil || n.CurrentRound.Proposer == "" {
-		proposer = n.ValidatorPool.Select(n.Round)
+	// Инициализируем раунд, если его ещё нет или высота изменилась
+	if n.CurrentRound == nil || n.CurrentRound.Height != n.Height {
+		proposer := n.ValidatorPool.Select(n.Round)
 		if proposer == nil {
 			fmt.Println("❌ No proposer selected")
 			return
 		}
-		// Инициализируем раунд только если его ещё нет
-		n.CurrentRound = NewRound(n.Height, n.Round, proposer.Address)
-		fmt.Printf("🚀 Proposer selected: %s\n", proposer.Address)
-		fmt.Printf("🚀 Starting round %d for height %d. Proposer: %s\n", n.Round, n.Height, proposer.Address)
-	} else {
-		proposer = n.ValidatorPool.GetValidatorByAddress(n.CurrentRound.Proposer)
-		if proposer == nil {
-			fmt.Printf("❌ Current proposer %s is not a validator\n", n.CurrentRound.Proposer)
+
+		// Проверяем, что пропосер действительно валидатор
+		if !n.IsValidator(proposer.Address) {
+			fmt.Printf("❌ Selected proposer is not a validator: %s\n", proposer.Address)
 			n.Round++
 			n.CurrentRound = nil
-			n.RunConsensusRound()
 			return
 		}
-		fmt.Printf("🔄 Continuing round %d with proposer %s\n", n.Round, n.CurrentRound.Proposer)
+
+		repModule := reputation.NewReputationSystem()
+		repScore := repModule.CalculateScore(proposer.Address, true)
+		if repScore < 50 {
+			fmt.Println("⚠️ Validator has low reputation, skipping")
+			n.Round++
+			n.CurrentRound = nil
+			return
+		}
+
+		n.CurrentRound = NewRound(n.Height, n.Round, proposer.Address)
+		fmt.Printf("🚀 Starting round %d for height %d. Proposer: %s\n", n.Round, n.Height, proposer.Address)
 	}
 
-	// Проверяем, что пропосер действительно валидатор
-	if !n.IsValidator(proposer.Address) {
-		fmt.Printf("❌ Selected proposer is not a validator: %s\n", proposer.Address)
-		return
-	}
-
-	repModule := reputation.NewReputationSystem()
-	repScore := repModule.CalculateScore(proposer.Address, true)
-	if repScore < 50 {
-		fmt.Println("⚠️ Validator has low reputation, skipping")
-		n.Round++            // Переходим к следующему раунду
-		n.CurrentRound = nil // Сбрасываем текущий раунд
-		return
-	}
-
-	// 2. Propose (только если мы — пропосер)
-	if proposer.Address == n.Address {
+	// Если мы — пропосер, создаём и отправляем блок
+	if n.CurrentRound.Proposer == n.Address {
 		if err := n.proposeBlock(n.CurrentRound); err != nil {
 			fmt.Printf("❌ Failed to propose block: %v\n", err)
-			repModule.UpdateReputation(n.Address, -10) // Снижаем репутацию
 			n.Round++
 			n.CurrentRound = nil
 			return
 		}
-		repModule.UpdateReputation(n.Address, 10) // Повышаем за успешное предложение
 	} else {
-		fmt.Printf("📬 Node is not proposer, waiting for proposal from %s\n", proposer.Address)
+		fmt.Printf("📬 Node is not proposer, waiting for proposal from %s\n", n.CurrentRound.Proposer)
 	}
 
+	// Ждём, пока не соберём голоса или не наступит таймаут
 	time.Sleep(1 * time.Second)
 
 	// Проверяем, не переключились ли мы на новый раунд
@@ -148,21 +143,19 @@ func (n *BFTNode) RunConsensusRound() {
 		return
 	}
 
-	// 3. Prevote
+	// 1. Prevote
 	if err := n.signAndBroadcast(n.CurrentRound, gossip.StatePrevote); err != nil {
 		fmt.Printf("❌ Failed to sign prevote: %v\n", err)
-		repModule.UpdateReputation(n.Address, -5)
 		n.Round++
 		n.CurrentRound = nil
 		return
 	}
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
 
-	// 4. Precommit
+	// 2. Precommit
 	if err := n.signAndBroadcast(n.CurrentRound, gossip.StatePrecommit); err != nil {
 		fmt.Printf("❌ Failed to sign precommit: %v\n", err)
-		repModule.UpdateReputation(n.Address, -5)
 		n.Round++
 		n.CurrentRound = nil
 		return
@@ -170,29 +163,136 @@ func (n *BFTNode) RunConsensusRound() {
 
 	time.Sleep(1 * time.Second)
 
-	// 5. Commit
+	// 3. Commit
 	fmt.Printf("🗳 Total precommits received: %d\n", len(n.CurrentRound.Precommits))
 	fmt.Printf("👥 Total validators: %d\n", len(n.ValidatorPool))
+
 	if HasQuorum(n.CurrentRound.Precommits, n.ValidatorPool, n.CurrentRound.Round, n.CurrentRound.Height, n.CurrentRound.BlockHash) {
 		if n.CurrentRound.ProposedBlock != nil {
 			if err := n.processCommittedBlock(n.CurrentRound.ProposedBlock); err != nil {
 				fmt.Printf("❌ Failed to process committed block: %v\n", err)
-				repModule.UpdateReputation(n.Address, -10)
 				n.Round++
 				n.CurrentRound = nil
 				return
 			}
-			repModule.UpdateReputation(n.Address, 10)
 		} else {
 			fmt.Println("❌ ProposedBlock is nil — cannot commit")
 		}
 	} else {
 		fmt.Println("❌ Not enough precommits to commit")
-		n.Round++            // Переходим к следующему раунду
-		n.CurrentRound = nil // Сбрасываем текущий раунд
+		n.Round++
+		n.CurrentRound = nil
+		return
 	}
 
-	n.Height++ // Увеличиваем высоту только при успешном коммите
+	// Увеличиваем высоту только после успешного коммита
+	n.Height++
+	n.Round = 0
+	n.CurrentRound = nil
+}
+
+func HasQuorum(votes map[string][]byte, validators []*pos.Validator, round, height int64, blockHash []byte) bool {
+	totalPower := 0.0
+	for _, v := range validators {
+		totalPower += float64(v.Balance)
+	}
+
+	validVotes := 0.0
+	data := []byte(fmt.Sprintf("prevote:%d:%d:%x", height, round, blockHash))
+	hash := sha256.Sum256(data)
+
+	for from, sig := range votes {
+		for _, v := range validators {
+			if v.Address == from {
+				pubKey, err := signature.GetPublicKey(v.Address)
+				if err != nil {
+					continue
+				}
+
+				if ecdsa.VerifyASN1(pubKey, hash[:], sig) {
+					validVotes += float64(v.Balance)
+				}
+				break
+			}
+		}
+	}
+
+	return validVotes > (2.0/3.0)*totalPower
+}
+
+func (n *BFTNode) SyncHeight() {
+	maxHeight := int64(0)
+	for _, addr := range n.Peers {
+		peerHeight := n.GetPeerHeight(addr) // Реализуйте GetPeerHeight отдельно
+		if peerHeight > maxHeight {
+			maxHeight = peerHeight
+		}
+	}
+
+	if maxHeight > n.Height {
+		fmt.Printf("🔄 Node is behind. Syncing from height %d to %d\n", n.Height, maxHeight)
+		n.Height = maxHeight
+		n.Round = 0
+		n.CurrentRound = nil
+	}
+}
+
+func (n *BFTNode) GetPeerHeight(peerAddr string) int64 {
+	// Устанавливаем TLS-соединение
+	conn, err := tls.Dial("tcp", peerAddr, p2p.GenerateClientTLSConfig())
+	if err != nil {
+		fmt.Printf("❌ Failed to connect to peer %s: %v\n", peerAddr, err)
+		return -1
+	}
+	defer func() {
+		if err := conn.Close(); err != nil {
+			fmt.Printf("❌ Failed to close connection to %s: %v\n", peerAddr, err)
+		}
+	}()
+
+	// Создаём сообщение типа "status"
+	msg := &gossip.ConsensusMessage{
+		Type: gossip.MsgStatus,
+		From: n.Address,
+	}
+
+	// Сериализуем сообщение
+	data, err := msg.Encode()
+	if err != nil {
+		fmt.Printf("❌ Failed to encode status message: %v\n", err)
+		return -1
+	}
+
+	// Отправляем запрос
+	_, err = conn.Write(data)
+	if err != nil {
+		fmt.Printf("❌ Failed to send status request to %s: %v\n", peerAddr, err)
+		return -1
+	}
+
+	// Ждём ответ
+	buf := make([]byte, 4096)
+	nBytes, err := conn.Read(buf)
+	if err != nil {
+		fmt.Printf("❌ Failed to read response from %s: %v\n", peerAddr, err)
+		return -1
+	}
+
+	// Десериализуем ответ
+	resp, err := gossip.DecodeConsensusMessage(buf[:nBytes])
+	if err != nil {
+		fmt.Printf("❌ Failed to decode consensus message: %v\n", err)
+		return -1
+	}
+
+	// Проверяем, что это сообщение с типом "status"
+	if resp.Type != gossip.MsgStatus {
+		fmt.Printf("❌ Unexpected message type: %s\n", resp.Type)
+		return -1
+	}
+
+	// Возвращаем высоту
+	return resp.Height
 }
 
 func (n *BFTNode) proposeBlock(round *Round) error {
