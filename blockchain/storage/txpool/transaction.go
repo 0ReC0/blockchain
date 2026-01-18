@@ -48,21 +48,39 @@ func (t *Transaction) Serialize() []byte {
 	return data
 }
 
+// blockchain/storage/txpool/transaction.go
+
+// blockchain/storage/txpool/transaction.go
+
 func (t *Transaction) Verify() bool {
-	// 1. Получаем публичный ключ из реестра
+	// 1. Проверка наличия публичного ключа
 	pubKey, err := signature.GetPublicKey(t.From)
 	if err != nil {
-		fmt.Printf("Public key not found for %s: %v\n", t.From, err)
+		fmt.Printf("❌ Public key not found for %s: %v\n", t.From, err)
 		return false
 	}
+
+	// 2. Проверка подписи транзакции
 	sigBytes, err := hex.DecodeString(t.Signature)
 	if err != nil {
 		fmt.Printf("❌ Failed to decode signature hex: %v\n", err)
 		return false
 	}
-
 	if !signature.Verify(pubKey, t.Serialize(), sigBytes) {
-		fmt.Printf("Signature verification failed for transaction %s\n", t.ID)
+		fmt.Printf("❌ Signature verification failed for transaction %s\n", t.ID)
+		return false
+	}
+
+	// 3. Проверка KYC
+	kycStatus, _ := kycManager.CheckKYC(t.From)
+	if kycStatus != kyc.Verified {
+		fmt.Printf("❌ Transaction rejected: sender not verified (KYC status: %v)\n", kycStatus)
+		return false
+	}
+
+	// 4. Проверка AML
+	if kycManager.CheckSanctions(t.From) {
+		fmt.Printf("❌ Transaction rejected: sender in sanctions list\n")
 		return false
 	}
 

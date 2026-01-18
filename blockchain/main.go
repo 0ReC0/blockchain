@@ -40,6 +40,8 @@ func main() {
 
 	txPool := txpool.NewTransactionPool()
 
+	kycManager := kyc.NewKYCManager(auditor)
+
 	// ============ Инициализация валидаторов ============
 	peerAddresses := []string{
 		"localhost:26656", // validator1

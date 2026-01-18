@@ -30,6 +30,8 @@ func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool, 
 }
 
 func (s *APIServer) Start(addr string) error {
+	http.HandleFunc("/kyc/register", s.handleKYCRegister)
+    http.HandleFunc("/kyc/verify", s.handleKYCVerify)
 	http.HandleFunc("/audit", enableCORS(s.handleSecurityAudit))
 	http.HandleFunc("/blocks", enableCORS(s.handleBlocks))
 	http.HandleFunc("/register", s.handleRegisterPublicKey)
@@ -155,4 +157,38 @@ func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 
 		next(w, r)
 	}
+}
+
+func (s *APIServer) handleKYCRegister(w http.ResponseWriter, r *http.Request) {
+	type Request struct {
+		Address   string `json:"address"`
+		FullName  string `json:"fullName"`
+		IDNumber  string `json:"idNumber"`
+		Country   string `json:"country"`
+	}
+	var req Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	kycManager.RegisterUser(req.Address, req.FullName, req.IDNumber, req.Country)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "KYC registration initiated for %s", req.Address)
+}
+
+func (s *APIServer) handleKYCVerify(w http.ResponseWriter, r *http.Request) {
+	type Request struct {
+		Address string `json:"address"`
+	}
+	var req Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if err := kycManager.VerifyUser(req.Address); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "User %s verified", req.Address)
 }
