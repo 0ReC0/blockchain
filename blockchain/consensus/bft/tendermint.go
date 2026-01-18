@@ -224,9 +224,25 @@ func (n *BFTNode) processCommittedBlock(blockData []byte) error {
 	n.Chain.AddBlock(block)
 	fmt.Printf("✅ Block added to chain: %s\n", block.Hash)
 
+	// Рассчитываем общую комиссию за транзакции
+	var totalFee float64
 	for _, tx := range block.Transactions {
+		totalFee += tx.Fee
+
+		// Удаляем транзакцию из пула
 		n.TxPool.RemoveTransaction(tx.ID)
 		fmt.Printf("🗑️ Removed transaction: %s\n", tx.ID)
+	}
+
+	// Добавляем комиссию валидатору, создавшему блок
+	for _, v := range n.ValidatorPool {
+		if v.Address == block.Validator {
+			// Блок создан успешно, увеличиваем баланс валидатора на сумму комиссий
+			v.Balance += int64(totalFee)
+			v.CommissionEarned += int64(totalFee)
+			fmt.Printf("💸 Validator %s earned %.2f fees\n", v.Address, totalFee)
+			break
+		}
 	}
 
 	commitSig, err := n.Signer.Sign(block.SerializeWithoutSignature())

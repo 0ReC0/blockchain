@@ -14,6 +14,7 @@ type Transaction struct {
 	From      string
 	To        string
 	Amount    float64
+	Fee       float64  // Добавлено: комиссия за транзакцию
 	Timestamp int64
 	Signature string
 	IsPrivate bool

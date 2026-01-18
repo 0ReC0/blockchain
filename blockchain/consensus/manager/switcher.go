@@ -69,6 +69,7 @@ func (cs *ConsensusSwitcher) startPoS(
 	}
 }
 
+// blockchain/consensus/manager/switcher.go
 func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 	chain *blockchain.Blockchain,
 	txPool *txpool.TransactionPool,
@@ -78,6 +79,12 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 	transactions := txPool.GetTransactions(100)
 	if len(transactions) == 0 {
 		return
+	}
+
+	// Рассчитываем общую комиссию за транзакции
+	var totalFee float64
+	for _, tx := range transactions {
+		totalFee += tx.Fee
 	}
 
 	prevBlock := chain.Blocks[len(chain.Blocks)-1]
@@ -91,13 +98,17 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 	block.Hash = block.CalculateHash()
 	signatureBytes, _ := signer.Sign(block.SerializeWithoutSignature())
 	block.Signature = signatureBytes
-
 	chain.Blocks = append(chain.Blocks, block)
+
+	// Добавляем комиссию валидатору
+	validator.CommissionEarned += int64(totalFee)
+
 	for _, tx := range transactions {
 		txPool.RemoveTransaction(tx.ID)
 	}
 
-	fmt.Printf("✅ Block %d created by PoS validator %s\n", block.Index, validator.Address)
+	fmt.Printf("✅ Block %d created by PoS validator %s with total fee: %.2f\n",
+		block.Index, validator.Address, totalFee)
 }
 
 // ===== BFT =====

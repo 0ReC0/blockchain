@@ -11,13 +11,13 @@ import (
 
 type ValidatorPool []*Validator
 
+// blockchain/consensus/pos/election.go
 func (p ValidatorPool) Select() *Validator {
 	if len(p) == 0 {
 		return nil
 	}
 
 	repModule := reputation.NewReputationSystem()
-
 	totalWeight := 0.0
 	weights := make([]float64, len(p))
 	addresses := make([]string, len(p))
@@ -25,7 +25,8 @@ func (p ValidatorPool) Select() *Validator {
 
 	for i, v := range p {
 		repScore := repModule.CalculateScore(v.Address, true)
-		weight := float64(v.Balance) * repScore
+		// Обновлено: добавлен учет комиссий в вес валидатора
+		weight := (float64(v.Balance) + float64(v.CommissionEarned)) * repScore
 		totalWeight += weight
 		weights[i] = totalWeight
 		addresses[i] = v.Address
@@ -42,7 +43,6 @@ func (p ValidatorPool) Select() *Validator {
 
 	rand.Seed(time.Now().UnixNano())
 	r := rand.Float64() * totalWeight
-
 	for i, w := range weights {
 		if r <= w {
 			return &Validator{
@@ -52,7 +52,6 @@ func (p ValidatorPool) Select() *Validator {
 			}
 		}
 	}
-
 	return p[0]
 }
 

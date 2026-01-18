@@ -51,9 +51,37 @@ func (s *APIServer) handleBlocks(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(s.Chain.Blocks)
 }
 
+// blockchain/integration/api/rest.go
 func (s *APIServer) handleTransactions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.TxPool.GetTransactions(100))
+
+	// Получаем все транзакции
+	transactions := s.TxPool.GetTransactions(100)
+
+	// Добавляем информацию о комиссиях
+	type TransactionResponse struct {
+		ID        string  `json:"id"`
+		From      string  `json:"from"`
+		To        string  `json:"to"`
+		Amount    float64 `json:"amount"`
+		Fee       float64 `json:"fee"`  // Добавлено
+		Timestamp int64   `json:"timestamp"`
+	}
+
+	// Преобразуем транзакции для ответа
+	var txResponses []TransactionResponse
+	for _, tx := range transactions {
+		txResponses = append(txResponses, TransactionResponse{
+			ID:        tx.ID,
+			From:      tx.From,
+			To:        tx.To,
+			Amount:    tx.Amount,
+			Fee:       tx.Fee,  // Добавлено
+			Timestamp: tx.Timestamp,
+		})
+	}
+
+	json.NewEncoder(w).Encode(txResponses)
 }
 
 func (s *APIServer) handleAddTransaction(w http.ResponseWriter, r *http.Request) {
