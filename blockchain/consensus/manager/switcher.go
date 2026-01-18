@@ -139,3 +139,23 @@ func (cs *ConsensusSwitcher) startBFT(
 		}()
 	}
 }
+
+func (cs *ConsensusSwitcher) StartShardedConsensus(
+	shards map[int]*sharding.Shard,
+	validators []*pos.Validator,
+	validatorPool pos.ValidatorPool,
+	signer signature.Signer,
+	peerAddresses []string,
+) {
+	for shardID, shard := range shards {
+		go func(shardID int, shard *sharding.Shard) {
+			fmt.Printf("🚀 Starting consensus for shard %d\n", shardID)
+			switch cs.Type {
+			case ConsensusPoS:
+				cs.startPoS(shard.TxPool, shard.Chain, validators, validatorPool, signer, peerAddresses)
+			case ConsensusBFT:
+				cs.startBFT(shard.TxPool, shard.Chain, validators, validatorPool, signer, peerAddresses)
+			}
+		}(shardID, shard)
+	}
+}
