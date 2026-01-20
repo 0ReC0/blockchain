@@ -51,6 +51,10 @@ func (s *APIServer) Start(addr string) error {
 	http.HandleFunc("/governance/vote", enableCORS(s.handleVote))
 	http.HandleFunc("/governance/proposal", enableCORS(s.handleProposalDetails))
 
+    http.HandleFunc("/offchain/channel/create", enableCORS(s.handleCreateChannel))
+	http.HandleFunc("/offchain/channel/update", enableCORS(s.handleUpdateChannel))
+	http.HandleFunc("/offchain/channel/finalize", enableCORS(s.handleFinalizeChannel))
+
 	return http.ListenAndServe(addr, nil)
 }
 

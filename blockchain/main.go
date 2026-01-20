@@ -48,6 +48,75 @@ func validatorExists(addr string, pool *pos.ValidatorPool) bool {
 	return false
 }
 
+// ============ Тестовый сценарий для off-chain ============
+func runOffChainTestScenario(api *api.OffChainHandler) {
+	fmt.Println("🧪 Starting off-chain test scenario...")
+
+	// 1. Создание канала
+	channelID := "test-channel-1"
+	req := struct {
+		ID       string  `json:"id"`
+		AddrA    string  `json:"addr_a"`
+		AddrB    string  `json:"addr_b"`
+		DepositA float64 `json:"deposit_a"`
+		DepositB float64 `json:"deposit_b"`
+		PubKeyA  string  `json:"pubkey_a"`
+		PubKeyB  string  `json:"pubkey_b"`
+		Timeout  int64   `json:"timeout"`
+	}{
+		ID:       channelID,
+		AddrA:    "validator1",
+		AddrB:    "validator2",
+		DepositA: 100,
+		DepositB: 50,
+		PubKeyA:  "pubkeyA",
+		PubKeyB:  "pubkeyB",
+		Timeout:  time.Now().Add(24 * time.Hour).Unix(),
+	}
+
+	body, _ := json.Marshal(req)
+	r := httptest.NewRequest("POST", "/offchain/channel/create", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+	api.HandleCreateChannel(w, r)
+	fmt.Println("✅ Channel created:", channelID)
+
+	// 2. Обновление состояния (оффчейн транзакции)
+	for i := 0; i < 3; i++ {
+		reqUpdate := struct {
+			ID      string  `json:"id"`
+			AmountA float64 `json:"amount_a"`
+			AmountB float64 `json:"amount_b"`
+			Nonce   int     `json:"nonce"`
+			SigA    string  `json:"sig_a"`
+			SigB    string  `json:"sig_b"`
+		}{
+			ID:      channelID,
+			AmountA: 90 - float64(i)*5,
+			AmountB: 60 + float64(i)*5,
+			Nonce:   i + 1,
+			SigA:    "sigA",
+			SigB:    "sigB",
+		}
+		body, _ = json.Marshal(reqUpdate)
+		r = httptest.NewRequest("POST", "/offchain/channel/update", bytes.NewBuffer(body))
+		w = httptest.NewRecorder()
+		api.HandleUpdateChannel(w, r)
+		fmt.Printf("✅ Channel updated: %s (Nonce: %d)\n", channelID, i+1)
+	}
+
+	// 3. Финализация
+	reqFinal := struct {
+		ID string `json:"id"`
+	}{
+		ID: channelID,
+	}
+	body, _ = json.Marshal(reqFinal)
+	r = httptest.NewRequest("POST", "/offchain/channel/finalize", bytes.NewBuffer(body))
+	w = httptest.NewRecorder()
+	api.HandleFinalizeChannel(w, r)
+	fmt.Println("✅ Channel finalized:", channelID)
+}
+
 func main() {
 	fmt.Println("🚀 Starting Minimal Blockchain Node with Sharding...")
 
@@ -224,7 +293,15 @@ func main() {
 	}()
 
 	fmt.Println("✅ Node started with sharding support. Waiting for connections...")
+    // Инициализация платежного канала
+    channelStore := offchain.NewChannelStore()
+    offchainAPI := &api.OffChainHandler{ChannelStore: channelStore}
 
+    // Регистрация off-chain роутов
+    apiServer.RegisterOffChainRoutes(offchainAPI)
+
+    // Запуск тестового сценария
+    runOffChainTestScenario(offchainAPI)
 	// ============ Бесконечный цикл для поддержания работы ============
 	select {}
 }
