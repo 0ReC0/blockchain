@@ -45,6 +45,12 @@ func (s *APIServer) Start(addr string) error {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
+
+    // Новые маршруты для говернанса
+	http.HandleFunc("/governance/proposal/new", enableCORS(s.handleNewProposal))
+	http.HandleFunc("/governance/vote", enableCORS(s.handleVote))
+	http.HandleFunc("/governance/proposal", enableCORS(s.handleProposalDetails))
+
 	return http.ListenAndServe(addr, nil)
 }
 

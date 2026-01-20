@@ -1,4 +1,4 @@
-// main.go
+// blockchain/main.go
 package main
 
 import (
@@ -8,36 +8,49 @@ import (
 	// Консенсус
 	"blockchain/consensus/manager"
 	"blockchain/consensus/pos"
-
 	// Сеть
 	"blockchain/network/peer"
-
 	// Хранилище
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
-
 	// Криптография
 	"blockchain/crypto/signature"
-
 	// Безопасность
 	"blockchain/security/audit"
 	"blockchain/security/double_spend"
 	"blockchain/security/fiftyone"
 	"blockchain/security/sybil"
-
 	// Интеграция (API)
 	"blockchain/integration/api"
-
 	// Говернанс
-	"blockchain/governance/upgrade"
 	"blockchain/governance/kyc"
-
+	"blockchain/consensus/governance"
 	// Шардинг
 	"blockchain/scalability/sharding"
 )
 
+// Глобальные переменные для говернанса
+var (
+	kycManager *kyc.KYCManager
+)
+
+func generateID() string {
+	// Упрощенная реализация генерации ID
+	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
+func validatorExists(addr string, pool *pos.ValidatorPool) bool {
+	for _, v := range *pool {
+		if v.Address == addr {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	fmt.Println("🚀 Starting Minimal Blockchain Node with Sharding...")
+
 	// ============ Инициализация хранилища ============
 	chain := blockchain.NewBlockchain()
 	txPool := txpool.NewTransactionPool()
@@ -49,7 +62,6 @@ func main() {
 	// ============ Инициализация шардов ============
 	const ShardCount = 4
 	shards := make(map[int]*sharding.Shard)
-
 	for i := 0; i < ShardCount; i++ {
 		shards[i] = &sharding.Shard{
 			ID:        i,
@@ -75,6 +87,7 @@ func main() {
 		"localhost:26659", // validator4
 		"localhost:26660", // validator5
 	}
+
 	validators := []*pos.Validator{
 		pos.NewValidatorWithAddress("validator1", peerAddresses[0], 2000),
 		pos.NewValidatorWithAddress("validator2", peerAddresses[1], 1000),
@@ -82,6 +95,7 @@ func main() {
 		pos.NewValidatorWithAddress("validator4", peerAddresses[3], 1200),
 		pos.NewValidatorWithAddress("validator5", peerAddresses[4], 800),
 	}
+
 	validatorPool := pos.NewValidatorPool(validators)
 
 	// ============ Инициализация signer'а ============
@@ -89,6 +103,7 @@ func main() {
 	if err != nil {
 		panic("❌ Failed to create signer: " + err.Error())
 	}
+
 	pubKey, err := signature.ParsePublicKey(signer.PublicKey())
 	if err != nil {
 		panic("❌ Failed to parse public key: " + err.Error())
@@ -109,6 +124,7 @@ func main() {
 		"validator4": 1200,
 		"validator5": 800,
 	}
+
 	guard := fiftyone.NewFiftyOnePercentGuard(validatorsMap)
 	go guard.Monitor(30 * time.Second)
 
@@ -120,6 +136,7 @@ func main() {
 		"validator4",
 		"validator5",
 	})
+
 	peer.SetSybilGuard(sybilGuard)
 
 	// ========== Инициализация аудита безопасности ==========
@@ -152,18 +169,50 @@ func main() {
 	sybil.SetAuditor(auditor)
 
 	// ============ Инициализация говернанса ============
-	upgradeMgr := upgrade.NewUpgradeManager("v1.0.0")
-	upgradeMgr.ProposeUpgrade("v2.0.0", "Switch to BFT + Sharding", time.Now().Add(24*time.Hour))
-	if err := upgradeMgr.ApproveUpgrade(); err != nil {
-		fmt.Println("⚠️ Approval failed:", err)
+	// Создаем менеджер говернанса
+	governanceManager := governance.NewGovernanceManager()
+
+	// Создаем пример предложения
+	proposal := governance.NewProposal(
+		"gov-001",
+		"Update block reward",
+		"Change block reward from 5 to 3 tokens",
+		validators[0].Address,
+		governance.ParameterChange,
+		0.67, // 67% голосов
+		validatorPool,
+	)
+
+	// Добавляем параметры изменения
+	proposal.Parameters["block_reward"] = float64(3)
+	proposal.Parameters["transaction_fee"] = float64(0.01)
+	proposal.Parameters["max_block_size"] = int64(2048)
+
+	// Добавляем предложение в говернанс
+	governanceManager.SubmitProposal(proposal)
+
+	// Пример голосования (в реальности это будет происходить через RPC)
+	for i, validator := range validators {
+		if i == 0 {
+			// Первый валидатор голосует "за"
+			governanceManager.VoteOnProposal(proposal.ID, validator.Address, "yes")
+		} else {
+			// Остальные валидаторы голосуют "против"
+			governanceManager.VoteOnProposal(proposal.ID, validator.Address, "no")
+		}
 	}
-	if err := upgradeMgr.ApplyUpgrade(); err != nil {
-		fmt.Println("⚠️ Upgrade failed:", err)
+
+	// Подсчитываем голоса и выполняем предложение
+	if approved := governanceManager.TallyVotes(proposal.ID); approved {
+		if err := governanceManager.ExecuteProposal(proposal.ID); err != nil {
+			fmt.Printf("Failed to execute proposal: %v\n", err)
+		}
+	} else {
+		fmt.Printf("Proposal %s was not approved\n", proposal.ID)
 	}
 
 	// ============ Запуск консенсуса в шардах ============
 	switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
-
 	go func() {
 		switcher.StartShardedConsensus(
 			shards,
@@ -175,6 +224,7 @@ func main() {
 	}()
 
 	fmt.Println("✅ Node started with sharding support. Waiting for connections...")
+
 	// ============ Бесконечный цикл для поддержания работы ============
 	select {}
 }
