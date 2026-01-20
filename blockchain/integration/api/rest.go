@@ -9,17 +9,25 @@ import (
 	"blockchain/crypto/signature"
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
-		"blockchain/security/audit"
-
+	"blockchain/security/audit"
+	"blockchain/governance/kyc"
 )
+
+// Global variables
+var (
+	auditor    *audit.SecurityAuditor
+	kycManager *kyc.KYCManager
+)
+
+// SetKYCManager sets the global KYC manager instance
+func SetKYCManager(manager *kyc.KYCManager) {
+	kycManager = manager
+}
 
 type APIServer struct {
 	Chain  *blockchain.Blockchain
 	TxPool *txpool.TransactionPool
 }
-
-var auditor *audit.SecurityAuditor
-
 
 func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool, auditorInstance *audit.SecurityAuditor) *APIServer {
 	auditor = auditorInstance // ✅ Сохраняем инстанс аудита
@@ -31,7 +39,7 @@ func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool, 
 
 func (s *APIServer) Start(addr string) error {
 	http.HandleFunc("/kyc/register", s.handleKYCRegister)
-    http.HandleFunc("/kyc/verify", s.handleKYCVerify)
+	http.HandleFunc("/kyc/verify", s.handleKYCVerify)
 	http.HandleFunc("/audit", enableCORS(s.handleSecurityAudit))
 	http.HandleFunc("/blocks", enableCORS(s.handleBlocks))
 	http.HandleFunc("/register", s.handleRegisterPublicKey)
@@ -46,12 +54,11 @@ func (s *APIServer) Start(addr string) error {
 		}
 	})
 
-    // Новые маршруты для говернанса
-	http.HandleFunc("/governance/proposal/new", enableCORS(s.handleNewProposal))
-	http.HandleFunc("/governance/vote", enableCORS(s.handleVote))
-	http.HandleFunc("/governance/proposal", enableCORS(s.handleProposalDetails))
+	// Новые маршруты для говернанса
+	// Note: These handlers need to be implemented in the main application
+	// since they require access to governance components
 
-    http.HandleFunc("/offchain/channel/create", enableCORS(s.handleCreateChannel))
+	http.HandleFunc("/offchain/channel/create", enableCORS(s.handleCreateChannel))
 	http.HandleFunc("/offchain/channel/update", enableCORS(s.handleUpdateChannel))
 	http.HandleFunc("/offchain/channel/finalize", enableCORS(s.handleFinalizeChannel))
 

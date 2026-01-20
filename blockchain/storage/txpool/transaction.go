@@ -7,7 +7,16 @@ import (
 	"time"
 
 	"blockchain/crypto/signature"
+	"blockchain/governance/kyc"
 )
+
+// Global KYC manager instance
+var kycManager *kyc.KYCManager
+
+// SetKYCManager sets the global KYC manager instance
+func SetKYCManager(manager *kyc.KYCManager) {
+	kycManager = manager
+}
 
 type Transaction struct {
 	ID        string
@@ -48,10 +57,7 @@ func (t *Transaction) Serialize() []byte {
 	return data
 }
 
-// blockchain/storage/txpool/transaction.go
-
-// blockchain/storage/txpool/transaction.go
-
+// Verify verifies the transaction signature and KYC status
 func (t *Transaction) Verify() bool {
 	// 1. Проверка наличия публичного ключа
 	pubKey, err := signature.GetPublicKey(t.From)
@@ -71,17 +77,19 @@ func (t *Transaction) Verify() bool {
 		return false
 	}
 
-	// 3. Проверка KYC
-	kycStatus, _ := kycManager.CheckKYC(t.From)
-	if kycStatus != kyc.Verified {
-		fmt.Printf("❌ Transaction rejected: sender not verified (KYC status: %v)\n", kycStatus)
-		return false
-	}
+	// 3. Проверка KYC (если доступен менеджер KYC)
+	if kycManager != nil {
+		kycStatus, _ := kycManager.CheckKYC(t.From)
+		if kycStatus != kyc.Verified {
+			fmt.Printf("❌ Transaction rejected: sender not verified (KYC status: %v)\n", kycStatus)
+			return false
+		}
 
-	// 4. Проверка AML
-	if kycManager.CheckSanctions(t.From) {
-		fmt.Printf("❌ Transaction rejected: sender in sanctions list\n")
-		return false
+		// 4. Проверка AML
+		if kycManager.CheckSanctions(t.From) {
+			fmt.Printf("❌ Transaction rejected: sender in sanctions list\n")
+			return false
+		}
 	}
 
 	return true

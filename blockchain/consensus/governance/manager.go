@@ -3,7 +3,6 @@ package governance
 
 import (
 	"fmt"
-	"math"
 	"time"
 	"blockchain/consensus/pos"
 )

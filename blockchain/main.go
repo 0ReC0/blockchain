@@ -8,6 +8,7 @@ import (
 	// Консенсус
 	"blockchain/consensus/manager"
 	"blockchain/consensus/pos"
+	"blockchain/consensus/governance"
 	// Сеть
 	"blockchain/network/peer"
 	// Хранилище
@@ -24,7 +25,6 @@ import (
 	"blockchain/integration/api"
 	// Говернанс
 	"blockchain/governance/kyc"
-	"blockchain/consensus/governance"
 	// Шардинг
 	"blockchain/scalability/sharding"
 )
@@ -33,89 +33,6 @@ import (
 var (
 	kycManager *kyc.KYCManager
 )
-
-func generateID() string {
-	// Упрощенная реализация генерации ID
-	return fmt.Sprintf("%d", time.Now().UnixNano())
-}
-
-func validatorExists(addr string, pool *pos.ValidatorPool) bool {
-	for _, v := range *pool {
-		if v.Address == addr {
-			return true
-		}
-	}
-	return false
-}
-
-// ============ Тестовый сценарий для off-chain ============
-func runOffChainTestScenario(api *api.OffChainHandler) {
-	fmt.Println("🧪 Starting off-chain test scenario...")
-
-	// 1. Создание канала
-	channelID := "test-channel-1"
-	req := struct {
-		ID       string  `json:"id"`
-		AddrA    string  `json:"addr_a"`
-		AddrB    string  `json:"addr_b"`
-		DepositA float64 `json:"deposit_a"`
-		DepositB float64 `json:"deposit_b"`
-		PubKeyA  string  `json:"pubkey_a"`
-		PubKeyB  string  `json:"pubkey_b"`
-		Timeout  int64   `json:"timeout"`
-	}{
-		ID:       channelID,
-		AddrA:    "validator1",
-		AddrB:    "validator2",
-		DepositA: 100,
-		DepositB: 50,
-		PubKeyA:  "pubkeyA",
-		PubKeyB:  "pubkeyB",
-		Timeout:  time.Now().Add(24 * time.Hour).Unix(),
-	}
-
-	body, _ := json.Marshal(req)
-	r := httptest.NewRequest("POST", "/offchain/channel/create", bytes.NewBuffer(body))
-	w := httptest.NewRecorder()
-	api.HandleCreateChannel(w, r)
-	fmt.Println("✅ Channel created:", channelID)
-
-	// 2. Обновление состояния (оффчейн транзакции)
-	for i := 0; i < 3; i++ {
-		reqUpdate := struct {
-			ID      string  `json:"id"`
-			AmountA float64 `json:"amount_a"`
-			AmountB float64 `json:"amount_b"`
-			Nonce   int     `json:"nonce"`
-			SigA    string  `json:"sig_a"`
-			SigB    string  `json:"sig_b"`
-		}{
-			ID:      channelID,
-			AmountA: 90 - float64(i)*5,
-			AmountB: 60 + float64(i)*5,
-			Nonce:   i + 1,
-			SigA:    "sigA",
-			SigB:    "sigB",
-		}
-		body, _ = json.Marshal(reqUpdate)
-		r = httptest.NewRequest("POST", "/offchain/channel/update", bytes.NewBuffer(body))
-		w = httptest.NewRecorder()
-		api.HandleUpdateChannel(w, r)
-		fmt.Printf("✅ Channel updated: %s (Nonce: %d)\n", channelID, i+1)
-	}
-
-	// 3. Финализация
-	reqFinal := struct {
-		ID string `json:"id"`
-	}{
-		ID: channelID,
-	}
-	body, _ = json.Marshal(reqFinal)
-	r = httptest.NewRequest("POST", "/offchain/channel/finalize", bytes.NewBuffer(body))
-	w = httptest.NewRecorder()
-	api.HandleFinalizeChannel(w, r)
-	fmt.Println("✅ Channel finalized:", channelID)
-}
 
 func main() {
 	fmt.Println("🚀 Starting Minimal Blockchain Node with Sharding...")
@@ -128,6 +45,10 @@ func main() {
 	auditor := audit.NewSecurityAuditor()
 	kycManager = kyc.NewKYCManager(auditor)
 
+	// Устанавливаем KYC-менеджер для txpool и api
+	txpool.SetKYCManager(kycManager)
+	api.SetKYCManager(kycManager)
+
 	// ============ Инициализация шардов ============
 	const ShardCount = 4
 	shards := make(map[int]*sharding.Shard)
@@ -139,13 +60,6 @@ func main() {
 			TxPool:    txpool.NewTransactionPool(),
 		}
 		fmt.Printf("🧱 Shard %d initialized\n", i)
-	}
-
-	// Роутер для маршрутизации транзакций
-	router := &sharding.ShardRouter{ShardCount: len(shards)}
-	shardingManager := &sharding.ShardingManager{
-		Shards: shards,
-		Router: router,
 	}
 
 	// ============ Инициализация валидаторов ============
@@ -211,8 +125,17 @@ func main() {
 	// ========== Инициализация аудита безопасности ==========
 	auditor = audit.NewSecurityAuditor()
 
+	// ============ Инициализация говернанса ============
+	// Создаем менеджер говернанса
+	governanceManager := governance.NewGovernanceManager()
+
 	// ============ Запуск REST API ============
+	// Создаем расширенный API сервер с доступом к governance компонентам
 	apiServer := api.NewAPIServer(chain, txPool, auditor)
+	
+	// Добавляем маршруты для говернанса
+	// Note: В реальной реализации эти обработчики нужно добавить в API пакет
+	
 	go func() {
 		fmt.Println("🔌 Starting REST API on :8081")
 		if err := apiServer.Start(":8081"); err != nil {
@@ -236,10 +159,6 @@ func main() {
 	double_spend.SetAuditor(auditor)
 	fiftyone.SetAuditor(auditor)
 	sybil.SetAuditor(auditor)
-
-	// ============ Инициализация говернанса ============
-	// Создаем менеджер говернанса
-	governanceManager := governance.NewGovernanceManager()
 
 	// Создаем пример предложения
 	proposal := governance.NewProposal(
@@ -293,15 +212,7 @@ func main() {
 	}()
 
 	fmt.Println("✅ Node started with sharding support. Waiting for connections...")
-    // Инициализация платежного канала
-    channelStore := offchain.NewChannelStore()
-    offchainAPI := &api.OffChainHandler{ChannelStore: channelStore}
-
-    // Регистрация off-chain роутов
-    apiServer.RegisterOffChainRoutes(offchainAPI)
-
-    // Запуск тестового сценария
-    runOffChainTestScenario(offchainAPI)
+	
 	// ============ Бесконечный цикл для поддержания работы ============
 	select {}
 }

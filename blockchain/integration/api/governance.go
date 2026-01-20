@@ -3,11 +3,36 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 	"blockchain/consensus/governance"
+	"blockchain/consensus/pos"
 )
 
-func (s *APIServer) handleNewProposal(w http.ResponseWriter, r *http.Request) {
+// generateID generates a unique ID based on timestamp
+func generateID() string {
+	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
+// validatorExists checks if a validator exists in the pool
+func validatorExists(addr string, pool *pos.ValidatorPool) bool {
+	for _, v := range *pool {
+		if v.Address == addr {
+			return true
+		}
+	}
+	return false
+}
+
+// Add fields to APIServer to hold references to governance components
+type ExtendedAPIServer struct {
+	*APIServer
+	ValidatorPool    *pos.ValidatorPool
+	GovernanceManager *governance.GovernanceManager
+}
+
+func (s *ExtendedAPIServer) handleNewProposal(w http.ResponseWriter, r *http.Request) {
 	type Request struct {
 		Title       string                 `json:"title"`
 		Description string                 `json:"description"`
@@ -44,20 +69,20 @@ func (s *APIServer) handleNewProposal(w http.ResponseWriter, r *http.Request) {
 	
 	// Создаем новое предложение
 	proposal := governance.NewProposal(
-		"gov-"+generateID(), // generateID определена в другом месте
+		"gov-"+generateID(),
 		req.Title,
 		req.Description,
 		author,
 		proposalType,
 		0.67,
-		s.Chain.ValidatorPool,
+		s.ValidatorPool,
 	)
 	
 	// Добавляем параметры
 	proposal.Parameters = req.Parameters
 	
 	// Добавляем предложение в говернанс
-	s.Chain.GovernanceManager.SubmitProposal(proposal)
+	s.GovernanceManager.SubmitProposal(proposal)
 	
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
@@ -66,7 +91,7 @@ func (s *APIServer) handleNewProposal(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *APIServer) handleVote(w http.ResponseWriter, r *http.Request) {
+func (s *ExtendedAPIServer) handleVote(w http.ResponseWriter, r *http.Request) {
 	type Request struct {
 		ProposalID string `json:"proposal_id"`
 		Choice     string `json:"choice"`
@@ -86,13 +111,13 @@ func (s *APIServer) handleVote(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	// Проверяем, что валидатор существует
-	if !validatorExists(validatorAddr, s.Chain.ValidatorPool) { // validatorExists определена в другом месте
+	if !validatorExists(validatorAddr, s.ValidatorPool) {
 		http.Error(w, "Invalid validator address", http.StatusBadRequest)
 		return
 	}
 	
 	// Голосуем
-	s.Chain.GovernanceManager.VoteOnProposal(req.ProposalID, validatorAddr, req.Choice)
+	s.GovernanceManager.VoteOnProposal(req.ProposalID, validatorAddr, req.Choice)
 	
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
@@ -100,14 +125,14 @@ func (s *APIServer) handleVote(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *APIServer) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
+func (s *ExtendedAPIServer) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
 	proposalID := r.URL.Query().Get("id")
 	if proposalID == "" {
 		http.Error(w, "Proposal ID not provided", http.StatusBadRequest)
 		return
 	}
 	
-	proposal := s.Chain.GovernanceManager.Proposals[proposalID]
+	proposal := s.GovernanceManager.Proposals[proposalID]
 	if proposal == nil {
 		http.Error(w, "Proposal not found", http.StatusNotFound)
 		return

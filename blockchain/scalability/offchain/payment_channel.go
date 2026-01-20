@@ -40,6 +40,17 @@ func NewChannelManager() *ChannelManager {
 	}
 }
 
+// GetChannel returns a channel by its ID
+func (cm *ChannelManager) GetChannel(id string) (*PaymentChannel, bool) {
+	channel, exists := cm.channels[id]
+	return channel, exists
+}
+
+// AddChannel adds a channel to the manager
+func (cm *ChannelManager) AddChannel(channel *PaymentChannel) {
+	cm.channels[channel.ID] = channel
+}
+
 // CreateChannel — создает новый канал
 func (cm *ChannelManager) CreateChannel(id string, a, b string, depositA, depositB float64, pubKeyA, pubKeyB *ecdsa.PublicKey, timeout time.Time) (*PaymentChannel, error) {
 	if depositA <= 0 || depositB <= 0 {

@@ -8,6 +8,7 @@ import (
 	"blockchain/consensus/bft"
 	"blockchain/consensus/pos"
 	"blockchain/crypto/signature"
+	"blockchain/scalability/sharding"
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
 )

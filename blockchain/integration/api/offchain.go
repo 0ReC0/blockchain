@@ -2,6 +2,7 @@
 package api
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -76,7 +77,7 @@ func (s *APIServer) handleUpdateChannel(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Invalid signature B", http.StatusBadRequest)
 		return
 	}
-	channel, exists := channelManager.channels[req.ID]
+	channel, exists := channelManager.GetChannel(req.ID)
 	if !exists {
 		http.Error(w, "Channel not found", http.StatusNotFound)
 		return
@@ -99,7 +100,7 @@ func (s *APIServer) handleFinalizeChannel(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	channel, exists := channelManager.channels[req.ID]
+	channel, exists := channelManager.GetChannel(req.ID)
 	if !exists {
 		http.Error(w, "Channel not found", http.StatusNotFound)
 		return
