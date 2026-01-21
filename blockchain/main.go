@@ -2,18 +2,25 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	// Консенсус
+	"blockchain/consensus/governance"
 	"blockchain/consensus/manager"
 	"blockchain/consensus/pos"
-	"blockchain/consensus/governance"
+	"blockchain/monitoring"
+
 	// Сеть
 	"blockchain/network/peer"
 	// Хранилище
 	"blockchain/storage/blockchain"
 	"blockchain/storage/txpool"
+
 	// Криптография
 	"blockchain/crypto/signature"
 	// Безопасность
@@ -21,6 +28,7 @@ import (
 	"blockchain/security/double_spend"
 	"blockchain/security/fiftyone"
 	"blockchain/security/sybil"
+
 	// Интеграция (API)
 	"blockchain/integration/api"
 	// Говернанс
@@ -54,10 +62,10 @@ func main() {
 	shards := make(map[int]*sharding.Shard)
 	for i := 0; i < ShardCount; i++ {
 		shards[i] = &sharding.Shard{
-			ID:        i,
+			ID:         i,
 			Validators: []string{"validator1", "validator2", "validator3"},
-			Chain:     blockchain.NewBlockchain(),
-			TxPool:    txpool.NewTransactionPool(),
+			Chain:      blockchain.NewBlockchain(),
+			TxPool:     txpool.NewTransactionPool(),
 		}
 		fmt.Printf("🧱 Shard %d initialized\n", i)
 	}
@@ -132,10 +140,10 @@ func main() {
 	// ============ Запуск REST API ============
 	// Создаем расширенный API сервер с доступом к governance компонентам
 	apiServer := api.NewAPIServer(chain, txPool, auditor)
-	
+
 	// Добавляем маршруты для говернанса
 	// Note: В реальной реализации эти обработчики нужно добавить в API пакет
-	
+
 	go func() {
 		fmt.Println("🔌 Starting REST API on :8081")
 		if err := apiServer.Start(":8081"); err != nil {
@@ -212,7 +220,43 @@ func main() {
 	}()
 
 	fmt.Println("✅ Node started with sharding support. Waiting for connections...")
-	
+
+	// ============ Инициализация мониторинга ============
+	// Создаем и запускаем сервер мониторинга
+	monitoringServer := monitoring.NewServer(":9090")
+	if err := monitoringServer.Start(); err != nil {
+		fmt.Printf("Warning: Failed to start monitoring server: %v\n", err)
+	} else {
+		fmt.Printf("📊 Monitoring server started on %s\n", monitoringServer.GetMetricsEndpoint())
+	}
+
+	// Получаем экземпляр метрик
+	metrics := monitoring.GetMetrics()
+
+	// Запускаем периодический сбор метрик системы
+	metrics.StartMonitoring()
+
+	// Обновляем некоторые начальные метрики
+	metrics.UpdateActivePeers(len(peerAddresses))
+
 	// ============ Бесконечный цикл для поддержания работы ============
+	// Добавляем graceful shutdown
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-c
+		fmt.Println("\n🛑 Shutting down blockchain node...")
+
+		// Останавливаем сервер мониторинга
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := monitoringServer.Stop(ctx); err != nil {
+			fmt.Printf("Error stopping monitoring server: %v\n", err)
+		}
+
+		os.Exit(0)
+	}()
+
 	select {}
 }
