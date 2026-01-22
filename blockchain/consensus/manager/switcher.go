@@ -77,7 +77,8 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 	validator *pos.Validator,
 	signer signature.Signer,
 ) {
-	transactions := txPool.GetTransactions(100)
+	// Увеличиваем количество транзакций в блоке для улучшения TPS
+	transactions := txPool.GetTransactions(200) // Увеличено с 100 до 200
 	if len(transactions) == 0 {
 		return
 	}

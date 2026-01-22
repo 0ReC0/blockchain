@@ -197,14 +197,70 @@ func TestFromXML(t *testing.T) {
 	}
 }
 
+func TestConvertToSEPA(t *testing.T) {
+	// Создаем экземпляр финансовой интеграции
+	fi := NewFinancialIntegration("institution-123", "BIC12345")
+
+	// Создаем тестовую транзакцию
+	tx := &txpool.Transaction{
+		ID:        "tx-001",
+		From:      "DE44500800000000000000", // Пример IBAN
+		To:        "DE55500800000000000000", // Пример IBAN
+		Amount:    100.50,
+		Fee:       0.01,
+		Timestamp: time.Now().Unix(),
+		Signature: "test-signature",
+	}
+
+	// Конвертируем транзакцию в формат SEPA
+	doc, err := fi.ConvertToSEPA(tx)
+	if err != nil {
+		t.Fatalf("Failed to convert transaction to SEPA: %v", err)
+	}
+
+	// Проверяем результаты
+	if doc.FIToFICstmrCdtTrf == nil {
+		t.Error("FIToFICstmrCdtTrf should not be nil")
+	}
+
+	if doc.FIToFICstmrCdtTrf.GrpHdr == nil {
+		t.Error("Group header should not be nil")
+	}
+
+	if doc.FIToFICstmrCdtTrf.GrpHdr.MsgId != tx.ID {
+		t.Errorf("Expected MsgId %s, got %s", tx.ID, doc.FIToFICstmrCdtTrf.GrpHdr.MsgId)
+	}
+
+	// Проверяем валюту (должна быть EUR для SEPA)
+	if doc.FIToFICstmrCdtTrf.GrpHdr.TtlIntrBkSttlmAmt.Currency != "EUR" {
+		t.Errorf("Expected currency EUR, got %s", doc.FIToFICstmrCdtTrf.GrpHdr.TtlIntrBkSttlmAmt.Currency)
+	}
+
+	// Проверяем сумму
+	expectedAmount := "100.50"
+	if doc.FIToFICstmrCdtTrf.GrpHdr.TtlIntrBkSttlmAmt.Value != expectedAmount {
+		t.Errorf("Expected amount %s, got %s", expectedAmount, doc.FIToFICstmrCdtTrf.GrpHdr.TtlIntrBkSttlmAmt.Value)
+	}
+
+	// Проверяем, что используется IBAN
+	if len(doc.FIToFICstmrCdtTrf.CdtTrfTxInf) > 0 {
+		if doc.FIToFICstmrCdtTrf.CdtTrfTxInf[0].CdtrAcct.Id.IBAN == "" {
+			t.Error("Creditor account should have IBAN for SEPA")
+		}
+		if doc.FIToFICstmrCdtTrf.CdtTrfTxInf[0].DbtrAcct.Id.IBAN == "" {
+			t.Error("Debtor account should have IBAN for SEPA")
+		}
+	}
+}
+
 // Вспомогательная функция для проверки содержания строки
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		   (s == substr || 
-		    (len(s) > len(substr) && 
-		     (s[:len(substr)] == substr || 
-		      s[len(s)-len(substr):] == substr ||
-		      indexOf(s, substr) >= 0)))
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			(len(s) > len(substr) &&
+				(s[:len(substr)] == substr ||
+					s[len(s)-len(substr):] == substr ||
+					indexOf(s, substr) >= 0)))
 }
 
 // Вспомогательная функция для поиска подстроки

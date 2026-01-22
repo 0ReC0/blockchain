@@ -107,7 +107,8 @@ func (n *BFTNode) RunConsensusRound() {
 		fmt.Printf("📬 Node is not proposer, waiting for proposal from %s\n", proposer.Address)
 	}
 
-	time.Sleep(1 * time.Second)
+	// Уменьшаем задержки для улучшения времени подтверждения транзакций
+	time.Sleep(500 * time.Millisecond) // Сокращено с 1 секунды
 
 	// 3. Prevote
 	if err := n.signAndBroadcast(round, gossip.StatePrevote); err != nil {
@@ -116,7 +117,8 @@ func (n *BFTNode) RunConsensusRound() {
 		return
 	}
 
-	time.Sleep(3 * time.Second)
+	// Уменьшаем задержки для улучшения времени подтверждения транзакций
+	time.Sleep(1 * time.Second) // Сокращено с 3 секунд
 
 	// 4. Precommit
 	if err := n.signAndBroadcast(round, gossip.StatePrecommit); err != nil {
@@ -125,7 +127,8 @@ func (n *BFTNode) RunConsensusRound() {
 		return
 	}
 
-	time.Sleep(1 * time.Second)
+	// Уменьшаем задержки для улучшения времени подтверждения транзакций
+	time.Sleep(500 * time.Millisecond) // Сокращено с 1 секунды
 
 	// 5. Commit
 	if HasQuorum(round.Precommits, len(n.ValidatorPool)) {

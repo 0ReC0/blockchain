@@ -40,6 +40,8 @@ func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool, 
 func (s *APIServer) Start(addr string) error {
 	http.HandleFunc("/kyc/register", s.handleKYCRegister)
 	http.HandleFunc("/kyc/verify", s.handleKYCVerify)
+	http.HandleFunc("/kyc/report-suspicious", s.handleKYCSuspiciousActivity) // Новый маршрут для подозрительной активности
+	http.HandleFunc("/kyc/compliance-report", s.handleKYCComplianceReport)   // Новый маршрут для отчетов о соответствии
 	http.HandleFunc("/audit", enableCORS(s.handleSecurityAudit))
 	http.HandleFunc("/blocks", enableCORS(s.handleBlocks))
 	http.HandleFunc("/register", s.handleRegisterPublicKey)
@@ -208,4 +210,30 @@ func (s *APIServer) handleKYCVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "User %s verified", req.Address)
+}
+
+// handleKYCSuspiciousActivity handles reporting suspicious activities
+func (s *APIServer) handleKYCSuspiciousActivity(w http.ResponseWriter, r *http.Request) {
+	type Request struct {
+		Address  string  `json:"address"`
+		Activity string  `json:"activity"`
+		Amount   float64 `json:"amount"`
+		RiskLevel string `json:"riskLevel"`
+	}
+	var req Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	
+	kycManager.ReportSuspiciousActivity(req.Address, req.Activity, req.Amount, req.RiskLevel)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Suspicious activity reported for %s", req.Address)
+}
+
+// handleKYCComplianceReport handles generating compliance reports
+func (s *APIServer) handleKYCComplianceReport(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	report := kycManager.GenerateComplianceReport()
+	json.NewEncoder(w).Encode(report)
 }

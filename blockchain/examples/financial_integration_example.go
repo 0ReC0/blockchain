@@ -10,7 +10,7 @@ import (
 
 func main() {
 	fmt.Println("=== Демонстрация интеграции блокчейна с финансовыми системами ===")
-	
+
 	// Создаем экземпляр финансовой интеграции
 	// institutionId - идентификатор вашего финансового учреждения
 	// BIC - банковский идентификационный код вашего банка
@@ -45,7 +45,7 @@ func main() {
 
 	fmt.Printf("Транзакция успешно сконвертирована в формат ISO20022\n")
 	fmt.Printf("Количество транзакций в сообщении: %s\n", doc.FIToFICstmrCdtTrf.GrpHdr.NbOfTxs)
-	fmt.Printf("Общая сумма: %s %s\n", 
+	fmt.Printf("Общая сумма: %s %s\n",
 		doc.FIToFICstmrCdtTrf.GrpHdr.TtlIntrBkSttlmAmt.Value,
 		doc.FIToFICstmrCdtTrf.GrpHdr.TtlIntrBkSttlmAmt.Currency)
 
@@ -90,7 +90,7 @@ func main() {
 	}
 
 	fmt.Printf("Пакет из %s транзакций успешно сконвертирован\n", batchDoc.FIToFICstmrCdtTrf.GrpHdr.NbOfTxs)
-	fmt.Printf("Общая сумма пакета: %s %s\n", 
+	fmt.Printf("Общая сумма пакета: %s %s\n",
 		batchDoc.FIToFICstmrCdtTrf.GrpHdr.TtlIntrBkSttlmAmt.Value,
 		batchDoc.FIToFICstmrCdtTrf.GrpHdr.TtlIntrBkSttlmAmt.Currency)
 
@@ -116,7 +116,28 @@ func main() {
 	fmt.Printf("ID сообщения: %s\n", newDoc.FIToFICstmrCdtTrf.GrpHdr.MsgId)
 	fmt.Printf("Время создания: %s\n", newDoc.FIToFICstmrCdtTrf.GrpHdr.CreDtTm)
 
+	// Демонстрация конвертации в SEPA формат
+	fmt.Println("\n--- Конвертация в формат SEPA ---")
+	sepaDoc, err := fi.ConvertToSEPA(tx)
+	if err != nil {
+		fmt.Printf("Ошибка конвертации в SEPA: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Транзакция успешно сконвертирована в формат SEPA\n")
+	fmt.Printf("Валюта: %s\n", sepaDoc.FIToFICstmrCdtTrf.GrpHdr.TtlIntrBkSttlmAmt.Currency)
+	fmt.Printf("Сумма: %s\n", sepaDoc.FIToFICstmrCdtTrf.GrpHdr.TtlIntrBkSttlmAmt.Value)
+
+	// Сериализуем SEPA документ в XML
+	sepaXmlData, err := sepaDoc.ToXML()
+	if err != nil {
+		fmt.Printf("Ошибка сериализации SEPA в XML: %v\n", err)
+		return
+	}
+
+	fmt.Printf("XML представление SEPA сообщения:\n%s\n", string(sepaXmlData))
+
 	fmt.Println("\n=== Интеграция завершена успешно ===")
 	fmt.Println("Теперь вы можете отправить XML сообщения в вашу финансовую систему")
-	fmt.Println("которая поддерживает стандарт ISO20022 для обработки платежей.")
+	fmt.Println("которая поддерживает стандарт ISO20022 или SEPA для обработки платежей.")
 }

@@ -9,10 +9,17 @@ type ShardRouter struct {
 	ShardCount int
 }
 
-// Пример маршрутизации: по первому байту адреса получателя
+// Улучшенная маршрутизация: по хешу адреса получателя для более равномерного распределения
 func (r *ShardRouter) RouteTransaction(tx *txpool.Transaction) int {
 	if len(tx.To) == 0 {
 		return 0
 	}
-	return int(tx.To[0]) % r.ShardCount
+	
+	// Вычисляем хеш адреса для более равномерного распределения
+	hash := 0
+	for _, c := range tx.To {
+		hash = hash*31 + int(c)
+	}
+	
+	return hash % r.ShardCount
 }

@@ -23,7 +23,7 @@ type Transaction struct {
 	From      string
 	To        string
 	Amount    float64
-	Fee       float64  // Добавлено: комиссия за транзакцию
+	Fee       float64 // Добавлено: комиссия за транзакцию
 	Timestamp int64
 	Signature string
 	IsPrivate bool
@@ -31,12 +31,31 @@ type Transaction struct {
 	PublicKey []byte
 }
 
+// Глобальная переменная для отслеживания размера пула транзакций
+var transactionPoolSize int64
+
 func NewTransaction(from, to string, amount float64) *Transaction {
+	// Динамическое вычисление комиссии на основе размера пула транзакций
+	baseFee := 0.001
+	dynamicFee := baseFee
+
+	// Увеличиваем комиссию при высокой нагрузке
+	if transactionPoolSize > 1000 {
+		dynamicFee = baseFee * 2
+	} else if transactionPoolSize > 5000 {
+		dynamicFee = baseFee * 5
+	} else if transactionPoolSize > 10000 {
+		dynamicFee = baseFee * 10
+	}
+
+	transactionPoolSize++
+
 	return &Transaction{
 		ID:        GenerateID(),
 		From:      from,
 		To:        to,
 		Amount:    amount,
+		Fee:       dynamicFee, // Добавляем динамическую комиссию
 		Timestamp: time.Now().Unix(),
 	}
 }

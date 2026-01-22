@@ -1,24 +1,25 @@
 package monitoring
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"runtime"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // Metrics holds all the blockchain performance metrics
 type Metrics struct {
-	TPS           prometheus.Gauge
-	BlockTime     prometheus.Gauge
+	TPS            prometheus.Gauge
+	BlockTime      prometheus.Gauge
 	NetworkLatency prometheus.Gauge
-	CPUUsage      prometheus.Gauge
-	MemoryUsage   prometheus.Gauge
-	ActivePeers   prometheus.Gauge
-	
+	CPUUsage       prometheus.Gauge
+	MemoryUsage    prometheus.Gauge
+	ActivePeers    prometheus.Gauge
+
 	// Additional metrics for more detailed monitoring
-	TotalTransactions prometheus.Counter
-	TotalBlocks       prometheus.Counter
+	TotalTransactions   prometheus.Counter
+	TotalBlocks         prometheus.Counter
 	PendingTransactions prometheus.Gauge
 	FailedTransactions  prometheus.Counter
 }
@@ -107,7 +108,7 @@ func (m *Metrics) UpdateCPUUsage() {
 	// In a real-world scenario, you would use more sophisticated methods
 	var mStats runtime.MemStats
 	runtime.ReadMemStats(&mStats)
-	
+
 	// This is a rough approximation - in practice, you might want to use
 	// a more accurate method to measure CPU usage
 	m.CPUUsage.Set(float64(mStats.NumGC))
@@ -156,12 +157,27 @@ func (m *Metrics) CalculateTPS(transactionCount int, duration time.Duration) {
 	m.UpdateTPS(tps)
 }
 
+// UpdateBlockProcessingMetrics updates metrics related to block processing
+func (m *Metrics) UpdateBlockProcessingMetrics(transactionCount int, processingTime time.Duration) {
+	// Обновляем TPS
+	m.CalculateTPS(transactionCount, processingTime)
+
+	// Обновляем время обработки блока
+	m.UpdateBlockTime(processingTime)
+
+	// Обновляем количество обработанных транзакций
+	m.IncrementTotalTransactionsBy(float64(transactionCount))
+
+	// Обновляем количество ожидающих транзакций (уменьшается после обработки)
+	m.UpdatePendingTransactions(0) // В реальной реализации это должно быть актуальное значение
+}
+
 // StartMonitoring begins periodic monitoring of system resources
 func (m *Metrics) StartMonitoring() {
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
-		
+
 		for range ticker.C {
 			m.UpdateCPUUsage()
 			m.UpdateMemoryUsage()
