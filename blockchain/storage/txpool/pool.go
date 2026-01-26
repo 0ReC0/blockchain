@@ -62,3 +62,9 @@ func (p *TransactionPool) Flush() {
 	defer p.mu.Unlock()
 	p.Transactions = make(map[string]*Transaction)
 }
+
+func (p *TransactionPool) Size() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.Transactions)
+}
