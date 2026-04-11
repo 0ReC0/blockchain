@@ -91,7 +91,12 @@ func (t *Transaction) Verify() bool {
 		fmt.Printf("❌ Failed to decode signature hex: %v\n", err)
 		return false
 	}
-	if !signature.Verify(pubKey, t.Serialize(), sigBytes) {
+	
+	// Debug: print serialized data
+	serialized := t.Serialize()
+	fmt.Printf("🔍 Verifying tx %s: data=%s, sigLen=%d\n", t.ID, string(serialized), len(sigBytes))
+	
+	if !signature.Verify(pubKey, serialized, sigBytes) {
 		fmt.Printf("❌ Signature verification failed for transaction %s\n", t.ID)
 		return false
 	}

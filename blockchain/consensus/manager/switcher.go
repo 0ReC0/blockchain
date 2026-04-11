@@ -105,9 +105,12 @@ func (cs *ConsensusSwitcher) simulatePoSBlockCreation(
 	// Добавляем комиссию валидатору
 	validator.CommissionEarned += int64(totalFee)
 
-	for _, tx := range transactions {
-		txPool.RemoveTransaction(tx.ID)
+	// Remove processed transactions from pool
+	txIDs := make([]string, len(transactions))
+	for i, tx := range transactions {
+		txIDs[i] = tx.ID
 	}
+	txPool.RemoveTransactions(txIDs)
 
 	fmt.Printf("✅ Block %d created by PoS validator %s with total fee: %.2f\n",
 		block.Index, validator.Address, totalFee)

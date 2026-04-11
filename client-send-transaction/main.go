@@ -25,6 +25,7 @@ type Transaction struct {
 	From      string  `json:"From"`
 	To        string  `json:"To"`
 	Amount    float64 `json:"Amount"`
+	Fee       float64 `json:"Fee"`
 	Timestamp int64   `json:"Timestamp"`
 	Signature string  `json:"Signature"`
 	IsPrivate bool    `json:"IsPrivate"`
@@ -103,12 +104,16 @@ func SendTransaction(tx *Transaction) error {
 	body, _ := json.Marshal(tx)
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to send transaction: %w", err)
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
 	fmt.Printf("📡 Response: %d\n%s\n", resp.StatusCode, string(bodyBytes))
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("transaction rejected: %s", string(bodyBytes))
+	}
 	return nil
 }
 
@@ -128,17 +133,116 @@ func RegisterPublicKey(address, pubKey string) error {
 	body, _ := json.Marshal(requestBody)
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to register public key: %w", err)
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("registration failed: %d\n%s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("registration failed: %d - %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	fmt.Printf("✅ Public key registered. Response: %d\n", resp.StatusCode)
 	return nil
+}
+
+// =================== KYC Функции ===================
+
+// KYCRegister регистрирует пользователя в системе KYC
+func KYCRegister(address, fullName, idNumber, country string) error {
+	type RegisterRequest struct {
+		Address  string `json:"address"`
+		FullName string `json:"fullName"`
+		IDNumber string `json:"idNumber"`
+		Country  string `json:"country"`
+	}
+
+	url := "http://localhost:8081/kyc/register"
+
+	requestBody := RegisterRequest{
+		Address:  address,
+		FullName: fullName,
+		IDNumber: idNumber,
+		Country:  country,
+	}
+
+	body, _ := json.Marshal(requestBody)
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to register KYC: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("KYC registration failed: %d - %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	fmt.Printf("✅ KYC registered. Response: %d\n", resp.StatusCode)
+	return nil
+}
+
+// KYCVerify верифицирует KYC статус пользователя
+func KYCVerify(address string) error {
+	type VerifyRequest struct {
+		Address string `json:"address"`
+	}
+
+	url := "http://localhost:8081/kyc/verify"
+
+	requestBody := VerifyRequest{
+		Address: address,
+	}
+
+	body, _ := json.Marshal(requestBody)
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to verify KYC: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("KYC verification failed: %d - %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	fmt.Printf("✅ KYC verified. Response: %d\n", resp.StatusCode)
+	return nil
+}
+
+// KYCStatus проверяет статус KYC пользователя
+func KYCStatus(address string) (string, float64, error) {
+	type StatusResponse struct {
+		Status    int     `json:"status"`
+		RiskScore float64 `json:"riskScore"`
+	}
+
+	url := "http://localhost:8081/kyc/status/" + address
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to get KYC status: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", 0, fmt.Errorf("KYC status check failed: %d - %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var status StatusResponse
+	if err := json.Unmarshal(bodyBytes, &status); err != nil {
+		return "", 0, fmt.Errorf("failed to parse KYC status: %w", err)
+	}
+
+	statusLabels := map[int]string{
+		0: "Pending",
+		1: "Verified",
+		2: "Rejected",
+		3: "Suspicious",
+	}
+
+	return statusLabels[status.Status], status.RiskScore, nil
 }
 
 // =================== Генерация ID ===================
@@ -150,8 +254,6 @@ func GenerateSecureToken(n int) string {
 	}
 	return base64.URLEncoding.EncodeToString(b)
 }
-
-// =================== HTML UI ===================
 
 // =================== Main ===================
 
@@ -174,6 +276,7 @@ func main() {
 		http.ServeFile(w, r, "index.html")
 	})
 
+	// Обработка транзакций
 	http.HandleFunc("/addtx", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("📬 /addtx вызван")
 
@@ -243,7 +346,96 @@ func main() {
 		fmt.Fprintf(w, "✅ Транзакция отправлена: %s\n", tx.ID)
 	}))
 
+	// KYC Регистрация
+	http.HandleFunc("/kyc/register", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("📬 /kyc/register вызван")
+
+		if r.Method != http.MethodPost {
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var kycData struct {
+			Address  string `json:"address"`
+			FullName string `json:"fullName"`
+			IDNumber string `json:"idNumber"`
+			Country  string `json:"country"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&kycData); err != nil {
+			http.Error(w, "Ошибка парсинга данных", http.StatusBadRequest)
+			return
+		}
+
+		if err := KYCRegister(kycData.Address, kycData.FullName, kycData.IDNumber, kycData.Country); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		fmt.Fprintf(w, "✅ KYC регистрация успешна для %s", kycData.Address)
+	}))
+
+	// KYC Верификация
+	http.HandleFunc("/kyc/verify", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("📬 /kyc/verify вызван")
+
+		if r.Method != http.MethodPost {
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var verifyData struct {
+			Address string `json:"address"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&verifyData); err != nil {
+			http.Error(w, "Ошибка парсинга данных", http.StatusBadRequest)
+			return
+		}
+
+		if err := KYCVerify(verifyData.Address); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		fmt.Fprintf(w, "✅ KYC верификация успешна для %s", verifyData.Address)
+	}))
+
+	// KYC Статус
+	http.HandleFunc("/kyc/status/", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("📬 /kyc/status/ вызван")
+
+		if r.Method != http.MethodGet {
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+			return
+		}
+
+		address := r.URL.Path[len("/kyc/status/"):]
+		if address == "" {
+			http.Error(w, "Address required", http.StatusBadRequest)
+			return
+		}
+
+		status, riskScore, err := KYCStatus(address)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		response := map[string]interface{}{
+			"status":    status,
+			"riskScore": riskScore,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+
 	fmt.Println("🌍 Веб-интерфейс доступен на http://localhost:8000")
+	fmt.Println("📋 KYC endpoints:")
+	fmt.Println("   POST /kyc/register - Регистрация KYC")
+	fmt.Println("   POST /kyc/verify   - Верификация KYC")
+	fmt.Println("   GET  /kyc/status/:address - Проверка статуса KYC")
 	err := http.ListenAndServe(":8000", nil)
 	if err != nil {
 		panic(err)

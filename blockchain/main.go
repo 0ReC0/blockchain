@@ -58,33 +58,27 @@ func main() {
 	api.SetKYCManager(kycManager)
 
 	// ============ Инициализация шардов ============
-	const ShardCount = 4
+	// Using single shard for stability (multi-shard causes port conflicts)
+	// IMPORTANT: Using main chain and txPool for consensus (not shard's separate pools)
+	const ShardCount = 1
 	shards := make(map[int]*sharding.Shard)
 	for i := 0; i < ShardCount; i++ {
 		shards[i] = &sharding.Shard{
 			ID:         i,
-			Validators: []string{"validator1", "validator2", "validator3"},
-			Chain:      blockchain.NewBlockchain(),
-			TxPool:     txpool.NewTransactionPool(),
+			Validators: []string{"validator1"},
+			Chain:      chain,    // Use main chain (shared with API)
+			TxPool:     txPool,   // Use main txPool (shared with API)
 		}
 		fmt.Printf("🧱 Shard %d initialized\n", i)
 	}
 
 	// ============ Инициализация валидаторов ============
 	peerAddresses := []string{
-		"localhost:26656", // validator1
-		"localhost:26657", // validator2
-		"localhost:26658", // validator3
-		"localhost:26659", // validator4
-		"localhost:26660", // validator5
+		"localhost:27656", // validator1
 	}
 
 	validators := []*pos.Validator{
 		pos.NewValidatorWithAddress("validator1", peerAddresses[0], 2000),
-		pos.NewValidatorWithAddress("validator2", peerAddresses[1], 1000),
-		pos.NewValidatorWithAddress("validator3", peerAddresses[2], 1500),
-		pos.NewValidatorWithAddress("validator4", peerAddresses[3], 1200),
-		pos.NewValidatorWithAddress("validator5", peerAddresses[4], 800),
 	}
 
 	validatorPool := pos.NewValidatorPool(validators)
@@ -110,10 +104,6 @@ func main() {
 	// ============ Инициализация защиты от 51% атак ============
 	validatorsMap := map[string]int64{
 		"validator1": 2000,
-		"validator2": 1000,
-		"validator3": 1500,
-		"validator4": 1200,
-		"validator5": 800,
 	}
 
 	guard := fiftyone.NewFiftyOnePercentGuard(validatorsMap)
@@ -122,10 +112,6 @@ func main() {
 	// ============ Инициализация защиты от Sybil ============
 	sybilGuard := sybil.NewSybilGuard([]string{
 		"validator1",
-		"validator2",
-		"validator3",
-		"validator4",
-		"validator5",
 	})
 
 	peer.SetSybilGuard(sybilGuard)
@@ -208,7 +194,8 @@ func main() {
 	}
 
 	// ============ Запуск консенсуса в шардах ============
-	switcher := manager.NewConsensusSwitcher(manager.ConsensusBFT)
+	// Using PoS consensus for simplicity (BFT has port conflicts in multi-shard setup)
+	switcher := manager.NewConsensusSwitcher(manager.ConsensusPoS)
 	go func() {
 		switcher.StartShardedConsensus(
 			shards,
@@ -220,20 +207,6 @@ func main() {
 	}()
 
 	fmt.Println("✅ Node started with sharding support. Waiting for connections...")
-
-	// ============ Улучшенная конфигурация шардинга ============
-	// Увеличиваем количество шардов для лучшей масштабируемости
-	const ImprovedShardCount = 8 // Увеличено с 4 до 8
-	improvedShards := make(map[int]*sharding.Shard)
-	for i := 0; i < ImprovedShardCount; i++ {
-		improvedShards[i] = &sharding.Shard{
-			ID:         i,
-			Validators: []string{"validator1", "validator2", "validator3"},
-			Chain:      blockchain.NewBlockchain(),
-			TxPool:     txpool.NewTransactionPool(),
-		}
-		fmt.Printf("🧱 Shard %d initialized (improved configuration)\n", i)
-	}
 
 	// ============ Инициализация мониторинга ============
 	// Создаем и запускаем сервер мониторинга

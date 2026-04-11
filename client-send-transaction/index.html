@@ -2,7 +2,7 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <title>Блокчейн Explorer</title>
+    <title>Блокчейн Explorer с KYC</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
       body {
@@ -95,7 +95,8 @@
       }
 
       /* Форма транзакции */
-      .tx-form {
+      .tx-form,
+      .kyc-form {
         background: #1a1a2e;
         padding: 1.5rem;
         border-radius: 10px;
@@ -103,32 +104,37 @@
         box-shadow: 0 0 10px rgba(0, 256, 149, 0.1);
       }
 
-      .tx-form h2 {
+      .tx-form h2,
+      .kyc-form h2 {
         margin-top: 0;
         margin-bottom: 1rem;
         color: #00ff95;
       }
 
       .tx-form input[type="text"],
-      .tx-form input[type="number"] {
+      .tx-form input[type="number"],
+      .kyc-form input[type="text"],
+      .kyc-form input[type="email"] {
         width: 100%;
         padding: 0.5rem;
         margin-top: 0.2rem;
         border-radius: 5px;
         border: none;
         font-size: 1rem;
+        background: #2a2a3e;
+        color: #e0e0e0;
       }
 
-      .tx-form label {
+      .tx-form label,
+      .kyc-form label {
         display: block;
         margin-top: 0.8rem;
         margin-bottom: 0.3rem;
+        color: #00ff95;
       }
 
-      .tx-form button {
-        margin-top: 1rem;
-      }
-      .tx-form button {
+      .tx-form button,
+      .kyc-form button {
         display: inline-block;
         padding: 0.6rem 1.2rem;
         background: linear-gradient(45deg, #00ff95, #7d3cff);
@@ -140,77 +146,416 @@
         cursor: pointer;
         box-shadow: 0 0 10px #00ff95, 0 0 20px #7d3cff;
         transition: all 0.3s ease;
+        margin-top: 1rem;
+        margin-right: 0.5rem;
       }
 
-      .tx-form button:hover {
+      .tx-form button:hover,
+      .kyc-form button:hover {
         transform: scale(1.05);
         box-shadow: 0 0 15px #00ff95, 0 0 25px #7d3cff;
       }
 
-      .tx-form button:active {
+      .tx-form button:active,
+      .kyc-form button:active {
         transform: scale(0.98);
       }
 
-      #txResult {
+      #txResult,
+      #kycResult {
         margin-top: 1rem;
         font-size: 1rem;
+        padding: 1rem;
+        border-radius: 8px;
+      }
+
+      .success {
+        background: rgba(0, 255, 149, 0.2);
+        color: #00ff95;
+        border: 1px solid #00ff95;
+      }
+
+      .error {
+        background: rgba(255, 75, 92, 0.2);
+        color: #ff4b5c;
+        border: 1px solid #ff4b5c;
+      }
+
+      /* KYC статус */
+      .kyc-status {
+        background: #222;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-top: 1rem;
+      }
+
+      .kyc-status.verified {
+        border-left: 4px solid #00ff95;
+      }
+
+      .kyc-status.pending {
+        border-left: 4px solid #ffaa00;
+      }
+
+      .kyc-status.rejected {
+        border-left: 4px solid #ff4b5c;
+      }
+
+      /* Вкладки */
+      .tabs {
+        display: flex;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #333;
+      }
+
+      .tab {
+        padding: 0.75rem 1.5rem;
+        cursor: pointer;
+        background: transparent;
+        border: none;
+        color: #888;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+      }
+
+      .tab:hover {
+        color: #00ff95;
+      }
+
+      .tab.active {
+        color: #00ff95;
+        border-bottom: 3px solid #00ff95;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      /* Анимация */
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .loading {
+        animation: pulse 1.5s infinite;
       }
     </style>
   </head>
   <body>
     <header>⛓ Блокчейн Explorer</header>
     <div class="container">
-      <!-- Форма для отправки транзакции -->
-      <div class="tx-form">
-        <h2>💸 Новая транзакция</h2>
-        <form id="txForm">
-          <div>
-            <label>От кого:</label>
-            <input type="text" name="From" value="Name 1" required />
-          </div>
-          <div>
-            <label>Кому:</label>
-            <input type="text" name="To" value="Name 2" required />
-          </div>
-          <div>
-            <label>Сумма:</label>
-            <input
-              type="number"
-              step="0.01"
-              name="Amount"
-              value="10.0"
-              required
-            />
-          </div>
-          <div>
-            <label>
-              <input type="checkbox" name="IsPrivate" value="true" />
-              🔐 Приватная транзакция
-            </label>
-          </div>
-          <button type="submit">➕ Отправить</button>
-        </form>
-        <div id="txResult"></div>
+      <!-- Вкладки -->
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('transaction')">💸 Транзакции</button>
+        <button class="tab" onclick="switchTab('kyc')">📋 KYC</button>
+        <button class="tab" onclick="switchTab('blocks')">📦 Блоки</button>
+        <button class="tab" onclick="switchTab('audit')">🛡 Аудит</button>
       </div>
 
-      <!-- Кнопка обновления -->
-      <button class="btn-refresh" onclick="fetchBlocks()">🔄 Обновить</button>
+      <!-- Вкладка: Транзакции -->
+      <div id="tab-transaction" class="tab-content active">
+        <div class="tx-form">
+          <h2>💸 Новая транзакция</h2>
+          <div id="kycWarning" class="error" style="display: none; margin-bottom: 1rem;">
+            ⚠️ Сначала пройдите KYC верификацию!
+          </div>
+          <form id="txForm">
+            <div>
+              <label>От кого (Address):</label>
+              <input type="text" name="From" id="txFrom" value="user1" required />
+            </div>
+            <div>
+              <label>Кому (Address):</label>
+              <input type="text" name="To" id="txTo" value="user2" required />
+            </div>
+            <div>
+              <label>Сумма:</label>
+              <input
+                type="number"
+                step="0.01"
+                name="Amount"
+                id="txAmount"
+                value="10.0"
+                required
+              />
+            </div>
+            <div>
+              <label>
+                <input type="checkbox" name="IsPrivate" value="true" />
+                🔐 Приватная транзакция
+              </label>
+            </div>
+            <button type="submit">➕ Отправить транзакцию</button>
+            <button type="button" onclick="checkKYCStatus()">🔍 Проверить KYC</button>
+          </form>
+          <div id="txResult"></div>
+        </div>
+      </div>
 
-      <!-- Блоки и транзакции -->
-      <div id="blocks"></div>
+      <!-- Вкладка: KYC -->
+      <div id="tab-kyc" class="tab-content">
+        <div class="kyc-form">
+          <h2>📋 KYC Регистрация</h2>
+          <form id="kycRegisterForm">
+            <div>
+              <label>Address (ваш идентификатор):</label>
+              <input type="text" name="address" id="kycAddress" required placeholder="user1" />
+            </div>
+            <div>
+              <label>Полное имя:</label>
+              <input type="text" name="fullName" id="kycFullName" required placeholder="Ivan Ivanov" />
+            </div>
+            <div>
+              <label>ID Номер (паспорт/ID):</label>
+              <input type="text" name="idNumber" id="kycIdNumber" required placeholder="AB1234567" />
+            </div>
+            <div>
+              <label>Страна:</label>
+              <input type="text" name="country" id="kycCountry" required placeholder="US" />
+            </div>
+            <button type="submit">📝 Зарегистрировать KYC</button>
+          </form>
+          <div id="kycRegisterResult"></div>
+        </div>
 
-      <!-- Логи безопасности -->
-      <h2 style="color: #ff6ec7; margin-top: 2rem">🛡 Логи безопасности</h2>
-      <button class="btn-refresh" onclick="fetchAudit()">
-        🔍 Загрузить логи
-      </button>
-      <div id="auditLogs" style="margin-top: 1rem"></div>
+        <div class="kyc-form">
+          <h2>✅ KYC Верификация</h2>
+          <form id="kycVerifyForm">
+            <div>
+              <label>Address:</label>
+              <input type="text" name="address" id="kycVerifyAddress" required placeholder="user1" />
+            </div>
+            <button type="submit">✅ Верифицировать</button>
+          </form>
+          <div id="kycVerifyResult"></div>
+        </div>
+
+        <div class="kyc-form">
+          <h2>🔍 Проверка статуса KYC</h2>
+          <form id="kycStatusForm">
+            <div>
+              <label>Address:</label>
+              <input type="text" name="address" id="kycStatusAddress" required placeholder="user1" />
+            </div>
+            <button type="submit">🔍 Проверить статус</button>
+          </form>
+          <div id="kycStatusResult"></div>
+        </div>
+      </div>
+
+      <!-- Вкладка: Блоки -->
+      <div id="tab-blocks" class="tab-content">
+        <button class="btn-refresh" onclick="fetchBlocks()">🔄 Обновить блоки</button>
+        <div id="blocks"></div>
+      </div>
+
+      <!-- Вкладка: Аудит -->
+      <div id="tab-audit" class="tab-content">
+        <button class="btn-refresh" onclick="fetchAudit()">🔍 Загрузить логи</button>
+        <div id="auditLogs" style="margin-top: 1rem"></div>
+      </div>
     </div>
 
     <script>
+      // Переключение вкладок
+      function switchTab(tabName) {
+        // Убираем активный класс со всех вкладок
+        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        // Добавляем активный класс выбранной вкладке
+        document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+      }
+
+      // Проверка KYC статуса
+      async function checkKYCStatus() {
+        const address = document.getElementById('txFrom').value;
+        const warningEl = document.getElementById('kycWarning');
+        
+        try {
+          const response = await fetch(`http://localhost:8000/kyc/status/${address}`);
+          if (!response.ok) {
+            warningEl.style.display = 'block';
+            warningEl.className = 'error';
+            warningEl.textContent = '⚠️ KYC статус не найден. Пройдите регистрацию!';
+            return false;
+          }
+          
+          const data = await response.json();
+          if (data.status === 'Verified') {
+            warningEl.style.display = 'none';
+            return true;
+          } else {
+            warningEl.style.display = 'block';
+            warningEl.className = 'error';
+            warningEl.textContent = `⚠️ KYC статус: ${data.status}. Требуется верификация!`;
+            return false;
+          }
+        } catch (e) {
+          warningEl.style.display = 'block';
+          warningEl.className = 'error';
+          warningEl.textContent = '⚠️ Ошибка проверки KYC: ' + e.message;
+          return false;
+        }
+      }
+
+      // Обработка формы транзакции
+      document.getElementById('txForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData);
+
+        const resultEl = document.getElementById('txResult');
+        resultEl.innerHTML = '<div class="loading">🔄 Отправка транзакции...</div>';
+
+        // Проверяем KYC перед отправкой
+        const kycOk = await checkKYCStatus();
+        if (!kycOk) {
+          resultEl.innerHTML = '<div class="error">❌ Сначала пройдите KYC верификацию (вкладка KYC)</div>';
+          return;
+        }
+
+        try {
+          const response = await fetch("http://localhost:8000/addtx", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          });
+
+          const text = await response.text();
+          if (response.ok) {
+            resultEl.innerHTML = `<div class="success">${text}</div>`;
+            form.reset();
+          } else {
+            resultEl.innerHTML = `<div class="error">❌ Ошибка: ${text}</div>`;
+          }
+        } catch (e) {
+          resultEl.innerHTML = `<div class="error">❌ Ошибка сети: ${e.message}</div>`;
+        }
+
+        return false;
+      });
+
+      // KYC Регистрация
+      document.getElementById('kycRegisterForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData);
+
+        const resultEl = document.getElementById('kycRegisterResult');
+        resultEl.innerHTML = '<div class="loading">🔄 Регистрация KYC...</div>';
+
+        try {
+          const response = await fetch("http://localhost:8000/kyc/register", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          });
+
+          const text = await response.text();
+          if (response.ok) {
+            resultEl.innerHTML = `<div class="success">${text}</div>`;
+            form.reset();
+          } else {
+            resultEl.innerHTML = `<div class="error">❌ Ошибка: ${text}</div>`;
+          }
+        } catch (e) {
+          resultEl.innerHTML = `<div class="error">❌ Ошибка сети: ${e.message}</div>`;
+        }
+
+        return false;
+      });
+
+      // KYC Верификация
+      document.getElementById('kycVerifyForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData);
+
+        const resultEl = document.getElementById('kycVerifyResult');
+        resultEl.innerHTML = '<div class="loading">🔄 Верификация KYC...</div>';
+
+        try {
+          const response = await fetch("http://localhost:8000/kyc/verify", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          });
+
+          const text = await response.text();
+          if (response.ok) {
+            resultEl.innerHTML = `<div class="success">${text}</div>`;
+            form.reset();
+          } else {
+            resultEl.innerHTML = `<div class="error">❌ Ошибка: ${text}</div>`;
+          }
+        } catch (e) {
+          resultEl.innerHTML = `<div class="error">❌ Ошибка сети: ${e.message}</div>`;
+        }
+
+        return false;
+      });
+
+      // KYC Статус
+      document.getElementById('kycStatusForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData);
+
+        const resultEl = document.getElementById('kycStatusResult');
+        resultEl.innerHTML = '<div class="loading">🔄 Проверка статуса...</div>';
+
+        try {
+          const response = await fetch(`http://localhost:8000/kyc/status/${data.address}`);
+          if (!response.ok) {
+            resultEl.innerHTML = '<div class="error">❌ KYC статус не найден</div>';
+            return;
+          }
+
+          const statusData = await response.json();
+          
+          let statusClass = 'pending';
+          if (statusData.status === 'Verified') statusClass = 'verified';
+          else if (statusData.status === 'Rejected') statusClass = 'rejected';
+
+          resultEl.innerHTML = `
+            <div class="kyc-status ${statusClass}">
+              <div><strong>📊 Статус:</strong> ${statusData.status}</div>
+              <div><strong>⚠️ Risk Score:</strong> ${statusData.riskScore}</div>
+            </div>
+          `;
+        } catch (e) {
+          resultEl.innerHTML = `<div class="error">❌ Ошибка: ${e.message}</div>`;
+        }
+
+        return false;
+      });
+
+      // Загрузка блоков
       async function fetchBlocks() {
         const container = document.getElementById("blocks");
-        container.innerHTML = "🔄 Загрузка...";
+        container.innerHTML = '<div class="loading">🔄 Загрузка...</div>';
 
         try {
           const response = await fetch("http://localhost:8081/blocks");
@@ -219,29 +564,30 @@
           const blocks = await response.json();
           container.innerHTML = "";
 
+          if (blocks.length === 0) {
+            container.innerHTML = "<div>Блоков пока нет</div>";
+            return;
+          }
+
           blocks.forEach((block) => {
             const blockEl = document.createElement("div");
             blockEl.className = "block";
 
             const header = document.createElement("div");
             header.className = "block-header";
-            header.textContent = "📦 Блок #" + block.index + " — " + block.hash;
+            header.textContent = "📦 Блок #" + block.index + " — " + block.hash.substring(0, 20) + "...";
 
             const content = document.createElement("div");
             content.className = "block-content";
 
             const timestamp = document.createElement("div");
-            timestamp.innerHTML =
-              "<strong>📅 Timestamp:</strong> " +
-              new Date(block.timestamp * 1000).toLocaleString();
+            timestamp.innerHTML = "<strong>📅 Timestamp:</strong> " + new Date(block.timestamp * 1000).toLocaleString();
 
             const txCount = document.createElement("div");
-            txCount.innerHTML =
-              "<strong>🧾 Транзакций:</strong> " + block.transactions.length;
+            txCount.innerHTML = "<strong>🧾 Транзакций:</strong> " + block.transactions.length;
 
             const validator = document.createElement("div");
-            validator.innerHTML =
-              "<strong>🧑 Validator:</strong> " + block.validator;
+            validator.innerHTML = "<strong>🧑 Validator:</strong> " + block.validator;
 
             content.appendChild(timestamp);
             content.appendChild(txCount);
@@ -262,20 +608,16 @@
                 const txTime = new Date(tx.Timestamp * 1000).toLocaleString();
 
                 txContent.innerHTML = `
-                <div><strong>🔢 ID:</strong> ${tx.ID}</div>
-                <div><strong>🧑 От:</strong> ${tx.From}</div>
-                <div><strong>🧍 Кому:</strong> ${tx.To}</div>
-                <div><strong>💰 Сумма:</strong> ${tx.Amount}</div>
-                <div><strong>📅 Время:</strong> ${txTime}</div>
-                <div><strong>📝 Подпись:</strong> ${tx.Signature}</div>
-                <div><strong>🔐 IsPrivate:</strong> ${
-                  tx.IsPrivate ? "Да" : "Нет"
-                }</div>
-              `;
+                  <div><strong>🔢 ID:</strong> ${tx.ID}</div>
+                  <div><strong>🧑 От:</strong> ${tx.From}</div>
+                  <div><strong>🧍 Кому:</strong> ${tx.To}</div>
+                  <div><strong>💰 Сумма:</strong> ${tx.Amount}</div>
+                  <div><strong>📅 Время:</strong> ${txTime}</div>
+                  <div><strong>🔐 IsPrivate:</strong> ${tx.IsPrivate ? "Да" : "Нет"}</div>
+                `;
 
                 txHeader.addEventListener("click", () => {
-                  txContent.style.display =
-                    txContent.style.display === "block" ? "none" : "block";
+                  txContent.style.display = txContent.style.display === "block" ? "none" : "block";
                 });
 
                 txEl.appendChild(txHeader);
@@ -289,58 +631,18 @@
             container.appendChild(blockEl);
 
             header.addEventListener("click", () => {
-              content.style.display =
-                content.style.display === "block" ? "none" : "block";
+              content.style.display = content.style.display === "block" ? "none" : "block";
             });
           });
         } catch (e) {
-          container.innerHTML =
-            '<div style="color:red">❌ Ошибка: ' + e.message + "</div>";
+          container.innerHTML = '<div class="error">❌ Ошибка: ' + e.message + "</div>";
         }
       }
 
-      // Автоматическая загрузка при открытии
-      fetchBlocks();
-
-      // Обработка формы
-      document
-        .getElementById("txForm")
-        .addEventListener("submit", async function (e) {
-          e.preventDefault();
-          const form = e.target;
-          const formData = new FormData(form);
-          const data = Object.fromEntries(formData);
-
-          const resultEl = document.getElementById("txResult");
-          resultEl.innerHTML = "🔄 Отправка транзакции...";
-
-          try {
-            const response = await fetch("http://localhost:8000/addtx", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(data),
-            });
-
-            const text = await response.text();
-            if (response.ok) {
-              resultEl.innerHTML = `<div style="color: #00ff95;">${text}</div>`;
-              form.reset();
-              fetchBlocks(); // Обновляем список блоков
-            } else {
-              resultEl.innerHTML = `<div style="color: red;">❌ Ошибка: ${text}</div>`;
-            }
-          } catch (e) {
-            resultEl.innerHTML = `<div style="color: red;">❌ Ошибка сети: ${e.message}</div>`;
-          }
-
-          return false; // ⬅️ Явно предотвращаем перезагрузку
-        });
-
+      // Загрузка аудита
       async function fetchAudit() {
         const container = document.getElementById("auditLogs");
-        container.innerHTML = "🔄 Загрузка логов безопасности...";
+        container.innerHTML = '<div class="loading">🔄 Загрузка логов безопасности...</div>';
 
         try {
           const response = await fetch("http://localhost:8081/audit");
@@ -367,27 +669,30 @@
                 : log.Severity === "WARNING"
                 ? "#ffaa00"
                 : "#00ff95";
-            header.textContent = `${log.Timestamp} — ${log.Type}`;
+            header.textContent = `${new Date(log.Timestamp * 1000).toLocaleString()} — ${log.Type}`;
 
             const content = document.createElement("div");
             content.className = "block-content";
             content.style.display = "block";
 
             content.innerHTML = `
-          <div><strong>Тип:</strong> ${log.Type}</div>
-          <div><strong>Сообщение:</strong> ${log.Message}</div>
-          <div><strong>Уровень:</strong> ${log.Severity}</div>
-          <div><strong>Нода:</strong> ${log.NodeID}</div>
-        `;
+              <div><strong>Тип:</strong> ${log.Type}</div>
+              <div><strong>Сообщение:</strong> ${log.Message}</div>
+              <div><strong>Уровень:</strong> ${log.Severity}</div>
+              <div><strong>Нода:</strong> ${log.NodeID}</div>
+            `;
 
             logEl.appendChild(header);
             logEl.appendChild(content);
             container.appendChild(logEl);
           });
         } catch (e) {
-          container.innerHTML = `<div style="color:red">❌ Ошибка: ${e.message}</div>`;
+          container.innerHTML = '<div class="error">❌ Ошибка: ' + e.message + "</div>";
         }
       }
+
+      // Автоматическая загрузка при открытии
+      fetchBlocks();
     </script>
   </body>
 </html>

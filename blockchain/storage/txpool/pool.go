@@ -41,14 +41,32 @@ func (p *TransactionPool) GetTransactions(limit int) []*Transaction {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	var list []*Transaction
-	for id, tx := range p.Transactions {
+	for _, tx := range p.Transactions {
 		list = append(list, tx)
-		delete(p.Transactions, id) // Удаляем сразу при взятии
 		if len(list) >= limit {
 			break
 		}
 	}
 	return list
+}
+
+// GetAllTransactions returns all transactions without removing them (for API)
+func (p *TransactionPool) GetAllTransactions() []*Transaction {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var list []*Transaction
+	for _, tx := range p.Transactions {
+		list = append(list, tx)
+	}
+	return list
+}
+
+func (p *TransactionPool) RemoveTransactions(ids []string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, id := range ids {
+		delete(p.Transactions, id)
+	}
 }
 
 func (p *TransactionPool) RemoveTransaction(id string) {

@@ -40,8 +40,9 @@ func NewAPIServer(chain *blockchain.Blockchain, txPool *txpool.TransactionPool, 
 func (s *APIServer) Start(addr string) error {
 	http.HandleFunc("/kyc/register", s.handleKYCRegister)
 	http.HandleFunc("/kyc/verify", s.handleKYCVerify)
-	http.HandleFunc("/kyc/report-suspicious", s.handleKYCSuspiciousActivity) // Новый маршрут для подозрительной активности
-	http.HandleFunc("/kyc/compliance-report", s.handleKYCComplianceReport)   // Новый маршрут для отчетов о соответствии
+	http.HandleFunc("/kyc/status/", s.handleKYCStatus)
+	http.HandleFunc("/kyc/report-suspicious", s.handleKYCSuspiciousActivity)
+	http.HandleFunc("/kyc/compliance-report", s.handleKYCComplianceReport)
 	http.HandleFunc("/audit", enableCORS(s.handleSecurityAudit))
 	http.HandleFunc("/blocks", enableCORS(s.handleBlocks))
 	http.HandleFunc("/register", s.handleRegisterPublicKey)
@@ -76,8 +77,8 @@ func (s *APIServer) handleBlocks(w http.ResponseWriter, r *http.Request) {
 func (s *APIServer) handleTransactions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// Получаем все транзакции
-	transactions := s.TxPool.GetTransactions(100)
+	// Получаем все транзакции без удаления
+	transactions := s.TxPool.GetAllTransactions()
 
 	// Добавляем информацию о комиссиях
 	type TransactionResponse struct {
@@ -85,7 +86,7 @@ func (s *APIServer) handleTransactions(w http.ResponseWriter, r *http.Request) {
 		From      string  `json:"from"`
 		To        string  `json:"to"`
 		Amount    float64 `json:"amount"`
-		Fee       float64 `json:"fee"`  // Добавлено
+		Fee       float64 `json:"fee"`
 		Timestamp int64   `json:"timestamp"`
 	}
 
@@ -97,7 +98,7 @@ func (s *APIServer) handleTransactions(w http.ResponseWriter, r *http.Request) {
 			From:      tx.From,
 			To:        tx.To,
 			Amount:    tx.Amount,
-			Fee:       tx.Fee,  // Добавлено
+			Fee:       tx.Fee,
 			Timestamp: tx.Timestamp,
 		})
 	}
@@ -210,6 +211,31 @@ func (s *APIServer) handleKYCVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "User %s verified", req.Address)
+}
+
+// handleKYCStatus handles getting KYC status for an address
+func (s *APIServer) handleKYCStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	// Extract address from URL path: /kyc/status/:address
+	address := r.URL.Path[len("/kyc/status/"):]
+	if address == "" {
+		http.Error(w, "Address required", http.StatusBadRequest)
+		return
+	}
+	
+	status, riskScore := kycManager.CheckKYC(address)
+	
+	response := map[string]interface{}{
+		"status":    status,
+		"riskScore": riskScore,
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 // handleKYCSuspiciousActivity handles reporting suspicious activities

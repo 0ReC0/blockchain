@@ -388,3 +388,224 @@ curl http://localhost:8081/audit
 ```
 
 ---
+
+## 🧪 Тестирование системы
+
+### Быстрая проверка (5 минут)
+
+```bash
+# 1. Очистка порта (если занят)
+pkill -f blockchain-node
+sleep 2
+
+# 2. Запуск сервера
+cd blockchain
+./blockchain-node &
+
+# 3. Проверка API (через 3 секунды)
+sleep 3
+curl http://localhost:8081/blocks
+
+# 4. Тест регистрации (нужен реальный ключ!)
+cd ..
+go run generate_keys.go  # Сгенерируйте ключ
+# Скопируйте публичный ключ из вывода
+
+# 5. Остановка
+pkill -f blockchain-node
+```
+
+**Или используйте готовый тестовый скрипт:**
+```bash
+./test_register.sh  # Автоматический тест регистрации
+```
+
+### Полное тестирование
+
+#### 1. Подготовка и сборка
+
+```bash
+cd /PATH_TO_REPO/Blockchain
+
+# Сборка blockchain-ноды
+cd blockchain
+go build -o blockchain-node .
+
+# Сборка клиента
+cd ../client-send-transaction
+go build -o client .
+```
+
+#### 2. Запуск сервера
+
+```bash
+cd blockchain
+./blockchain-node
+```
+
+**Ожидаемый вывод:**
+```
+🚀 Starting Minimal Blockchain Node with Sharding...
+🧱 Shard 0 initialized
+🔑 Public key registered for validator localhost:27656
+🏷️ Validator 1: localhost:27656 | Stake: 2000
+🔌 Starting REST API on :8081
+✅ Node started with sharding support. Waiting for connections...
+📊 Monitoring server started on http://:9090/metrics
+```
+
+#### 3. Проверка API endpoints
+
+```bash
+# Проверка блоков
+curl -s http://localhost:8081/blocks | python3 -m json.tool
+
+# Проверка транзакций
+curl -s http://localhost:8081/transactions
+
+# Проверка аудита
+curl -s http://localhost:8081/audit
+
+# Проверка метрик (Prometheus)
+curl -s http://localhost:9090/metrics | head -20
+```
+
+#### 4. Тестирование полного цикла транзакции
+
+```bash
+# Переменные
+API="http://localhost:8081"
+USER="testuser_$(date +%s)"
+
+# 1. Регистрация публичного ключа
+# Сначала сгенерируйте реальный ключ:
+# Используйте скрипт из раздела "Диагностика"
+
+curl -X POST "$API/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"address\":\"$USER\",\"pubKey\":\"<реальный_ключ_из_130_hex_символов>\"}"
+
+# 2. KYC регистрация
+curl -X POST "$API/kyc/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"address\":\"$USER\",\"fullName\":\"Test User\",\"idNumber\":\"ID123456\",\"country\":\"RU\"}"
+
+# 3. KYC верификация
+curl -X POST "$API/kyc/verify" \
+  -H "Content-Type: application/json" \
+  -d "{\"address\":\"$USER\"}"
+
+# 4. Отправка транзакции (нужна правильная подпись)
+curl -X POST "$API/transactions" \
+  -H "Content-Type: application/json" \
+  -d "{\"ID\":\"tx-test\",\"From\":\"$USER\",\"To\":\"recipient\",\"Amount\":100,\"Fee\":0.001,\"Timestamp\":$(date +%s),\"Signature\":\"30440220...\",\"IsPrivate\":false}"
+```
+
+#### 5. Тестирование веб-интерфейса
+
+```bash
+# Запуск клиента
+cd client-send-transaction
+./client
+```
+
+Откройте в браузере: **http://localhost:8000**
+
+1. Заполните форму:
+   - **From**: `user1`
+   - **To**: `user2`
+   - **Amount**: `100`
+   - **IsPrivate**: `false`
+2. Нажмите **Отправить**
+3. Проверьте результат в консоли сервера
+
+#### 6. Мониторинг консенсуса
+
+```bash
+# Наблюдение за созданием блоков в реальном времени
+watch -n 2 'curl -s http://localhost:8081/blocks | python3 -c "import sys,json; b=json.load(sys.stdin); print(f\"Блоков: {len(b)}, Последний: #{b[-1].get(\"index\",0) if b else 0}\")"'
+```
+
+---
+
+## 🔧 Диагностика и решение проблем
+
+### Частые ошибки
+
+| Ошибка | Причина | Решение |
+|--------|---------|---------|
+| `connection refused` | Сервер не запущен | Запустите `./blockchain-node` |
+| `Invalid transaction signature` | Ключ не зарегистрирован или KYC не пройден | Сначала `/register`, затем `/kyc/register` и `/kyc/verify` |
+| `address already in use` | Порт 8081 или 9090 занят | `pkill -f blockchain-node` и перезапустите |
+| `Failed to parse public key` | Неверный формат ключа | Используйте `go run generate_keys.go` для генерации |
+| `sender not verified` | KYC статус Pending | Вызовите `/kyc/verify` для подтверждения |
+
+### Очистка и перезапуск
+
+```bash
+# Убить все процессы
+pkill -f blockchain-node
+pkill -f client
+
+# Пересобрать
+cd blockchain && go build -o blockchain-node .
+cd ../client-send-transaction && go build -o client .
+
+# Запустить заново
+cd ../blockchain && ./blockchain-node
+```
+
+### Генерация ключей
+
+Для тестирования через API нужны реальные ключи:
+
+```bash
+# Сгенерировать пару ключей
+go run generate_keys.go
+
+# Пример вывода:
+# 🔑 Генерация пары ключей ECDSA P-256...
+# 
+# Приватный ключ (hex):
+#   abc123...
+# 
+# Публичный ключ (hex, 130 символов):
+#   04a1b2c3d4e5f6...
+```
+
+**Важно:** Публичный ключ должен быть:
+- 130 hex символов (65 байт)
+- Начинаться с `04` (несжатый формат)
+- Содержать действительную точку на кривой P-256
+
+### Чек-лист успешного тестирования
+
+- [ ] Сервер запускается без ошибок
+- [ ] `GET /blocks` возвращает список блоков
+- [ ] `GET /transactions` возвращает пул транзакций
+- [ ] `POST /register` принимает публичный ключ
+- [ ] `POST /kyc/register` регистрирует пользователя
+- [ ] `POST /kyc/verify` подтверждает KYC
+- [ ] `POST /transactions` принимает транзакции (статус 200)
+- [ ] PoS консенсус создаёт новые блоки каждые 10 секунд
+- [ ] Метрики доступны на `http://localhost:9090/metrics`
+- [ ] Веб-интерфейс открывается на `http://localhost:8000`
+
+---
+
+## 📊 API Reference
+
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/blocks` | GET | Получить все блоки |
+| `/transactions` | GET | Получить транзакции из пула |
+| `/transactions` | POST | Добавить транзакцию |
+| `/register` | POST | Зарегистрировать публичный ключ |
+| `/kyc/register` | POST | Регистрация на KYC |
+| `/kyc/verify` | POST | Верификация KYC |
+| `/kyc/report-suspicious` | POST | Сообщение о подозрительной активности |
+| `/kyc/compliance-report` | GET | Отчёт о соответствии |
+| `/audit` | GET | События безопасности |
+| `/metrics` | GET | Prometheus метрики (порт 9090) |
+
+---
