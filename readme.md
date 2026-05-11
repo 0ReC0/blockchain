@@ -17,6 +17,10 @@
 - Механизмы безопасности
 - Говернанс и управление обновлениями
 - REST API и клиентский веб-интерфейс
+- Адаптивное шардирование с ARIMA-прогнозированием
+- Мониторинг производительности (Prometheus)
+- KYC/AML интеграция
+- Приватные транзакции с ZKP
 
 ---
 
@@ -24,18 +28,23 @@
 
 ![Архитектура](arch.svg "Архитектура")
 
+Диаграмма архитектуры в формате PlantUML: [architecture.puml](blockchain/architecture.puml)
+
 ```
 blockchain/
 ├── consensus/         # Модуль консенсуса
-│   ├── manager/         # Менеджер консенсуса
+│   ├── manager/         # Менеджер консенсуса (переключатель PoS/BFT)
 │   ├── pos/             # Реализация PoS
-│   └── bft/             # Реализация BFT
+│   ├── bft/             # Реализация BFT
+│   └── governance/      # Говернанс консенсуса
 ├── crypto/            # Криптографические функции
-│   └── signature/       # Подписи и ключи
+│   └── signature/       # Подписи и ключи (ECDSA P-256)
 ├── network/           # Сетевые компоненты
 │   ├── gossip/          # Протокол рассылки
 │   ├── peer/            # Управление пирингом
-│   └── p2p/             # P2P-соединения
+│   ├── p2p/             # P2P-соединения
+│   ├── ping/            # Ping/Pong для проверки связи
+│   └── multiaddr/       # Мультиадресация
 ├── storage/           # Хранилище данных
 │   ├── blockchain/      # Блокчейн
 │   └── txpool/          # Пул транзакций
@@ -46,14 +55,31 @@ blockchain/
 │   └── sybil/           # Защита от Sybil-атак
 ├── governance/        # Говернанс
 │   ├── reputation/      # Репутационная система
-│   └── upgrade/         # Управление обновлениями
+│   ├── upgrade/         # Управление обновлениями
+│   └── kyc/             # KYC/AML интеграция
+├── scalability/       # Масштабирование
+│   ├── sharding/        # Адаптивное шардирование (ARIMA)
+│   ├── parallel/        # Параллельная обработка
+│   └── offchain/        # Off-chain вычисления
+├── privacy/           # Приватность
+│   └── zkp/             # Zero-Knowledge Proofs
+├── monitoring/        # Мониторинг производительности
+│   ├── metrics.go       # Prometheus метрики
+│   └── server.go        # Сервер метрик
 ├── integration/       # Интеграционные компоненты
-│   └── api/             # REST API
-└── main.go            # Точка входа
+│   ├── api/             # REST API
+│   ├── financial/       # Финансовая интеграция (ISO 20022)
+│   └── rpc.go           # RPC-интерфейс
+├── contracts/         # Смарт-контракты (в разработке)
+├── examples/          # Примеры использования
+├── benchmark/         # Бенчмарки
+├── main.go            # Точка входа
+└── certs/             # TLS сертификаты
 
 client/
 ├── main.go              # Клиентская часть
-└── index.html           # Веб-интерфейс
+├── index.html           # Веб-интерфейс
+└── client               # Скомпилированный бинарник
 ```
 
 ---
@@ -64,6 +90,8 @@ client/
 
 #### 1.1 Менеджер консенсуса (`consensus/manager/switcher.go`)
 - Реализует переключение между алгоритмами PoS и BFT
+- Единый интерфейс для обоих алгоритмов
+- Поддержка работы в шардированной среде
 
 #### 1.2 Реализация PoS (`consensus/pos/`)
 - **stake.go** — модель ставок
@@ -78,10 +106,14 @@ client/
 - **tcp.go** — TCP-сервер для BFT-нод
 - **node.go** — точка входа узла
 
+#### 1.4 Говернанс консенсуса (`consensus/governance/`)
+- Управление параметрами консенсуса
+- Предложения и голосования
+
 ### 2. Криптографические функции
 
 - **crypto/signature/** — реализация подписей и ключей
-  - **ecdsa.go** — реализация ECDSA подписей
+  - **ecdsa.go** — реализация ECDSA подписей (P-256)
   - **signer.go** — интерфейс подписывающего объекта
   - **keys.go** — работа с публичными ключами
   - **registry.go** — реестр публичных ключей
@@ -99,11 +131,16 @@ client/
 - **network/peer/peer.go** — модель узла
 - **network/peer/manager.go** — управление пирингом
 - **network/peer/discovery.go** — обнаружение пиров
-- **network/ping/pong.go** — проверка связи между узлами
 
 #### 3.3 P2P-соединения
 - **network/p2p/handshake.go** — рукопожатие между узлами
 - **network/p2p/crypto.go** — TLS-конфигурация
+
+#### 3.4 Проверка связи
+- **network/ping/pong.go** — Ping/Pong для проверки узлов
+
+#### 3.5 Мультиадресация
+- **network/multiaddr/** — поддержка мультиадресов
 
 ### 4. Хранилище данных
 
@@ -144,12 +181,66 @@ client/
 - **governance/upgrade/manager.go** — менеджер обновлений
 - **governance/upgrade/strategy.go** — стратегии обновления
 
-### 7. Интеграционные компоненты
+#### 6.3 KYC/AML интеграция
+- **governance/kyc/kyc.go** — KYC/AML менеджер
+- Регистрация и верификация пользователей
+- Проверка статуса KYC
+- Отчётность о подозрительной активности
 
-- **integration/api/rest.go** — REST API для взаимодействия с блокчейном
+### 7. Масштабирование
+
+#### 7.1 Адаптивное шардирование
+- **scalability/sharding/shard.go** — модель шарда
+- **scalability/sharding/adaptive_sharding.go** — менеджер адаптивного шардирования
+- **scalability/sharding/router.go** — маршрутизатор транзакций
+- **scalability/sharding/forecast.go** — ARIMA(1,1,1) прогнозист нагрузки
+- Автоматическое масштабирование: 1-8 шардов
+- Прогнозирование нагрузки на 5 шагов вперёд
+
+#### 7.2 Параллельная обработка
+- **scalability/parallel/** — параллельное выполнение транзакций
+
+#### 7.3 Off-chain вычисления
+- **scalability/offchain/** — вычисления вне цепочки
+
+### 8. Приватность
+
+#### 8.1 Zero-Knowledge Proofs
+- **privacy/zkp/** — доказательства с нулевым разглашением
+- Приватные транзакции
+
+### 9. Мониторинг
+
+#### 9.1 Prometheus метрики
+- **monitoring/metrics.go** — определение метрик
+- **monitoring/server.go** — сервер метрик
+- **monitoring/README.md** — документация по мониторингу
+
+**Доступные метрики:**
+- `blockchain_tps` — транзакции в секунду
+- `blockchain_block_time_seconds` — время создания блока
+- `blockchain_network_latency_seconds` — задержка сети
+- `blockchain_cpu_usage_percent` — использование CPU
+- `blockchain_memory_usage_bytes` — использование памяти
+- `blockchain_active_peers` — активные пиры
+- `blockchain_total_transactions` — всего транзакций
+- `blockchain_total_blocks` — всего блоков
+- `blockchain_pending_transactions` — транзакции в ожидании
+- `blockchain_failed_transactions` — неудачные транзакции
+
+**Endpoint:** `http://localhost:9090/metrics`
+
+### 10. Интеграционные компоненты
+
+#### 10.1 REST API
+- **integration/api/rest.go** — REST API сервер
 - **integration/api/rpc.go** — RPC-интерфейс
 
-### 8. Точка входа
+#### 10.2 Финансовая интеграция
+- **integration/financial/iso20022.go** — интеграция с ISO 20022
+- **integration/financial/benchmark_test.go** — бенчмарки
+
+### 11. Точка входа
 
 - **main.go** — точка входа в приложение, инициализация всех компонентов
 
@@ -185,6 +276,7 @@ REST API предоставляет следующие эндпоинты:
     "From": "addr1",
     "To": "addr2",
     "Amount": 100,
+    "Fee": 0.001,
     "Timestamp": 1718262000,
     "Signature": "signature",
     "IsPrivate": false
@@ -209,6 +301,7 @@ REST API предоставляет следующие эндпоинты:
       "From": "addr1",
       "To": "addr2",
       "Amount": 100,
+      "Fee": 0.001,
       "Timestamp": 1718262000,
       "Signature": "signature",
       "IsPrivate": false
@@ -241,15 +334,83 @@ REST API предоставляет следующие эндпоинты:
   [
     {
       "Timestamp": 1718262000,
-      "Event": "Double spend attempt detected",
-      "Details": "Transaction ID: tx1"
+      "Type": "DoubleSpendAttempt",
+      "Message": "Double spend attempt detected",
+      "Details": "Transaction ID: tx1",
+      "Severity": "HIGH"
     }
   ]
   ```
 
+### 6. **POST /kyc/register**
+- **Описание**: Регистрация пользователя в системе KYC/AML
+- **Запрос**:
+  ```json
+  {
+    "address": "addr1",
+    "fullName": "John Doe",
+    "idNumber": "ID123456",
+    "country": "RU"
+  }
+  ```
+- **Ответ**:
+  ```json
+  {
+    "status": "success",
+    "message": "KYC registration initiated"
+  }
+  ```
+
+### 7. **POST /kyc/verify**
+- **Описание**: Верификация KYC статуса пользователя
+- **Запрос**:
+  ```json
+  {
+    "address": "addr1"
+  }
+  ```
+- **Ответ**:
+  ```json
+  {
+    "status": "success",
+    "message": "KYC verified"
+  }
+  ```
+
+### 8. **GET /kyc/status/:address**
+- **Описание**: Проверка статуса KYC пользователя
+- **Запрос**: Нет
+- **Ответ**:
+  ```json
+  {
+    "status": "Verified",
+    "riskScore": 0.15
+  }
+  ```
+
+### 9. **POST /kyc/report-suspicious**
+- **Описание**: Сообщение о подозрительной активности
+- **Запрос**:
+  ```json
+  {
+    "address": "addr1",
+    "reason": "Unusual transaction pattern"
+  }
+  ```
+
+### 10. **GET /kyc/compliance-report**
+- **Описание**: Отчёт о соответствии требованиям AML
+- **Запрос**: Нет
+
+### 11. **GET /metrics**
+- **Описание**: Prometheus метрики производительности
+- **Запрос**: Нет
+- **Порт**: 9090
+- **Ответ**: Текст в формате Prometheus
+
 ---
 
-## Клиентская часть: `/client`
+## Клиентская часть: `/client-send-transaction`
 
 ### Основные файлы:
 
@@ -259,8 +420,11 @@ REST API предоставляет следующие эндпоинты:
 - Отправку транзакций на сервер
 - Регистрацию публичных ключей
 - Простой веб-интерфейс для отправки транзакций
+- KYC endpoints (регистрация, верификация, проверка статуса)
 
 **`index.html`** — веб-интерфейс для отправки транзакций
+
+**`client`** — скомпилированный бинарник
 
 ---
 
@@ -276,19 +440,20 @@ REST API предоставляет следующие эндпоинты:
   - **From**: Адрес отправителя (строка)
   - **To**: Адрес получателя (строка)
   - **Amount**: Сумма перевода (число)
+  - **Fee**: Комиссия (число)
   - **IsPrivate**: Флаг приватной транзакции (true/false)
 
 #### 2.2. Генерация ключей
 - При отправке формы генерируются новые ECDSA-ключи:
   - Приватный ключ (hex)
-  - Публичный ключ (hex, несжатый формат)
+  - Публичный ключ (hex, несжатый формат, 130 символов)
 
 #### 2.3. Регистрация публичного ключа
 - Публичный ключ регистрируется на сервере через `/register`
 
 #### 2.4. Создание транзакции
 - Генерируется ID транзакции
-- Заполняются поля From, To, Amount, Timestamp
+- Заполняются поля From, To, Amount, Fee, Timestamp
 - Подписывается транзакция с использованием приватного ключа
 
 #### 2.5. Отправка транзакции
@@ -299,15 +464,24 @@ REST API предоставляет следующие эндпоинты:
   - Успех: ✅ Транзакция отправлена
   - Ошибка: ❌ Сообщение об ошибке
 
+#### 2.7. KYC функционал
+- Регистрация KYC через `/kyc/register`
+- Верификация KYC через `/kyc/verify`
+- Проверка статуса KYC через `/kyc/status/:address`
+
 ---
 
 ## Технологии
 
-- **Go** — язык программирования
+- **Go 1.21+** — язык программирования
 - **TLS** — шифрование сетевого трафика
-- **ECDSA** — алгоритм цифровой подписи
+- **ECDSA P-256** — алгоритм цифровой подписи
 - **SHA-256** — хэширование данных
 - **Gob/JSON** — сериализация данных
+- **Prometheus** — мониторинг производительности
+- **ARIMA(1,1,1)** — прогнозирование нагрузки для шардирования
+- **BadgerDB** — key-value хранилище
+- **ISO 20022** — финансовый стандарт интеграции
 
 ---
 
@@ -326,39 +500,64 @@ openssl req -new -key certs/server.key -out certs/server.csr -subj "/CN=localhos
 openssl x509 -req -in certs/server.csr -CA certs/ca.crt -CAkey certs/ca.key -CAcreateserial -out certs/server.crt -days 365
 ```
 
-### 2. Запуск серверной части
+### 2. Сборка проекта
+
+```bash
+# Сборка blockchain-ноды
+cd blockchain
+go build -o blockchain-node .
+
+# Сборка клиента
+cd ../client-send-transaction
+go build -o client .
+```
+
+### 3. Запуск серверной части
 
 Перед запуском убедитесь, что сертификаты находятся в директории `blockchain/certs`.
 
 ```bash
 cd blockchain
-go run main.go
+./blockchain-node
+```
+
+**Ожидаемый вывод:**
+```
+🚀 Starting Minimal Blockchain Node with Sharding...
+🧱 Adaptive sharding initialized: min=1, max=8 shards
+🔑 Public key registered for validator localhost:27656
+🏷️ Validator 1: localhost:27656 | Stake: 2000
+🔌 Starting REST API on :8081
+✅ Node started with sharding support. Waiting for connections...
+📊 Monitoring server started on http://:9090/metrics
 ```
 
 - Сервер будет доступен по адресу: `https://localhost:8081`
+- Метрики Prometheus: `http://localhost:9090/metrics`
 - TLS-проверка включена, используется сертификат из `blockchain/certs/server.crt`
 
 ---
 
-### 3. Запуск клиентской части
+### 4. Запуск клиентской части
 ```bash
 cd client-send-transaction
-go run main.go
+./client
 ```
 - Веб-интерфейс будет доступен по адресу: `http://localhost:8000`
 
-### 4. Тестирование через веб-интерфейс
+### 5. Тестирование через веб-интерфейс
 1. Открыть `http://localhost:8000` в браузере
 2. Заполнить форму:
   - From (адрес отправителя)
   - To (адрес получателя)
   - Amount (сумма)
+  - Fee (комиссия)
   - IsPrivate (true/false)
 3. Отправить транзакцию
 
 ![Интерфейс](explorer.png "Интерфейс")
 
-### 5. Тестирование через curl
+### 6. Тестирование через curl
 ```bash
 # Добавление транзакции
 curl -X POST http://localhost:8081/transactions \
@@ -368,8 +567,10 @@ curl -X POST http://localhost:8081/transactions \
            "From": "addr1",
            "To": "addr2",
            "Amount": 100,
+           "Fee": 0.001,
            "Timestamp": 1718262000,
-           "Signature": "signature"
+           "Signature": "signature",
+           "IsPrivate": false
          }'
 
 # Регистрация публичного ключа
@@ -380,11 +581,29 @@ curl -X POST http://localhost:8081/register \
            "pubKey": "pubkey_hex"
          }'
 
+# KYC регистрация
+curl -X POST http://localhost:8081/kyc/register \
+     -H "Content-Type: application/json" \
+     -d '{
+           "address": "addr1",
+           "fullName": "John Doe",
+           "idNumber": "ID123456",
+           "country": "RU"
+         }'
+
+# KYC верификация
+curl -X POST http://localhost:8081/kyc/verify \
+     -H "Content-Type: application/json" \
+     -d '{"address": "addr1"}'
+
 # Получение всех блоков
 curl http://localhost:8081/blocks
 
 # Получение событий безопасности
 curl http://localhost:8081/audit
+
+# Получение метрик Prometheus
+curl http://localhost:9090/metrics
 ```
 
 ---
@@ -446,7 +665,7 @@ cd blockchain
 **Ожидаемый вывод:**
 ```
 🚀 Starting Minimal Blockchain Node with Sharding...
-🧱 Shard 0 initialized
+🧱 Adaptive sharding initialized: min=1, max=8 shards
 🔑 Public key registered for validator localhost:27656
 🏷️ Validator 1: localhost:27656 | Stake: 2000
 🔌 Starting REST API on :8081
@@ -477,25 +696,29 @@ curl -s http://localhost:9090/metrics | head -20
 API="http://localhost:8081"
 USER="testuser_$(date +%s)"
 
-# 1. Регистрация публичного ключа
-# Сначала сгенерируйте реальный ключ:
-# Используйте скрипт из раздела "Диагностика"
+# 1. Генерация ключей
+go run generate_keys.go
+# Скопируйте публичный ключ (130 hex символов, начинается с 04)
 
+# 2. Регистрация публичного ключа
 curl -X POST "$API/register" \
   -H "Content-Type: application/json" \
   -d "{\"address\":\"$USER\",\"pubKey\":\"<реальный_ключ_из_130_hex_символов>\"}"
 
-# 2. KYC регистрация
+# 3. KYC регистрация
 curl -X POST "$API/kyc/register" \
   -H "Content-Type: application/json" \
   -d "{\"address\":\"$USER\",\"fullName\":\"Test User\",\"idNumber\":\"ID123456\",\"country\":\"RU\"}"
 
-# 3. KYC верификация
+# 4. KYC верификация
 curl -X POST "$API/kyc/verify" \
   -H "Content-Type: application/json" \
   -d "{\"address\":\"$USER\"}"
 
-# 4. Отправка транзакции (нужна правильная подпись)
+# 5. Проверка статуса KYC
+curl "$API/kyc/status/$USER"
+
+# 6. Отправка транзакции (нужна правильная подпись)
 curl -X POST "$API/transactions" \
   -H "Content-Type: application/json" \
   -d "{\"ID\":\"tx-test\",\"From\":\"$USER\",\"To\":\"recipient\",\"Amount\":100,\"Fee\":0.001,\"Timestamp\":$(date +%s),\"Signature\":\"30440220...\",\"IsPrivate\":false}"
@@ -515,6 +738,7 @@ cd client-send-transaction
    - **From**: `user1`
    - **To**: `user2`
    - **Amount**: `100`
+   - **Fee**: `0.001`
    - **IsPrivate**: `false`
 2. Нажмите **Отправить**
 3. Проверьте результат в консоли сервера
@@ -524,6 +748,19 @@ cd client-send-transaction
 ```bash
 # Наблюдение за созданием блоков в реальном времени
 watch -n 2 'curl -s http://localhost:8081/blocks | python3 -c "import sys,json; b=json.load(sys.stdin); print(f\"Блоков: {len(b)}, Последний: #{b[-1].get(\"index\",0) if b else 0}\")"'
+```
+
+#### 7. Автоматические тесты
+
+```bash
+# Тест регистрации
+./test_register.sh
+
+# Тест KYC
+./test_kyc.sh
+
+# Тест блоков
+./test_blocks.sh
 ```
 
 ---
@@ -565,10 +802,10 @@ go run generate_keys.go
 
 # Пример вывода:
 # 🔑 Генерация пары ключей ECDSA P-256...
-# 
+#
 # Приватный ключ (hex):
 #   abc123...
-# 
+#
 # Публичный ключ (hex, 130 символов):
 #   04a1b2c3d4e5f6...
 ```
@@ -586,10 +823,12 @@ go run generate_keys.go
 - [ ] `POST /register` принимает публичный ключ
 - [ ] `POST /kyc/register` регистрирует пользователя
 - [ ] `POST /kyc/verify` подтверждает KYC
+- [ ] `GET /kyc/status/:address` возвращает статус
 - [ ] `POST /transactions` принимает транзакции (статус 200)
 - [ ] PoS консенсус создаёт новые блоки каждые 10 секунд
 - [ ] Метрики доступны на `http://localhost:9090/metrics`
 - [ ] Веб-интерфейс открывается на `http://localhost:8000`
+- [ ] Адаптивное шардирование работает (1-8 шардов)
 
 ---
 
@@ -603,9 +842,41 @@ go run generate_keys.go
 | `/register` | POST | Зарегистрировать публичный ключ |
 | `/kyc/register` | POST | Регистрация на KYC |
 | `/kyc/verify` | POST | Верификация KYC |
+| `/kyc/status/:address` | GET | Проверка статуса KYC |
 | `/kyc/report-suspicious` | POST | Сообщение о подозрительной активности |
 | `/kyc/compliance-report` | GET | Отчёт о соответствии |
 | `/audit` | GET | События безопасности |
 | `/metrics` | GET | Prometheus метрики (порт 9090) |
+
+---
+
+## 📈 Производительность
+
+### Целевые показатели
+
+- **Пропускная способность**: ≥1000 TPS (BFT), ≥850 TPS (PoS)
+- **Время подтверждения**: <2с (BFT), <5с (PoS)
+- **Масштабирование**: 1-8 шардов (адаптивно)
+- **Прогнозирование**: ARIMA(1,1,1), горизонт 5 шагов
+
+### Бенчмарки
+
+```bash
+# Запуск бенчмарков
+cd blockchain
+go test -bench=. ./benchmark/...
+
+# Тест производительности
+go test -bench=. ./performance_test.go
+```
+
+---
+
+## 🔗 Дополнительные ресурсы
+
+- [Мониторинг производительности](blockchain/monitoring/README.md)
+- [Диаграмма архитектуры](blockchain/architecture.puml)
+- [Примеры использования](blockchain/examples/)
+- [Бенчмарки](blockchain/benchmark/)
 
 ---
