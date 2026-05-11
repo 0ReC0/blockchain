@@ -37,9 +37,10 @@ import (
 	"blockchain/scalability/sharding"
 )
 
-// Глобальные переменные для говернанса
+// Глобальные переменные для говернанса и адаптивного шардирования
 var (
-	kycManager *kyc.KYCManager
+	kycManager           *kyc.KYCManager
+	adaptiveShardManager *sharding.AdaptiveShardingManager
 )
 
 func main() {
@@ -57,20 +58,43 @@ func main() {
 	txpool.SetKYCManager(kycManager)
 	api.SetKYCManager(kycManager)
 
-	// ============ Инициализация шардов ============
-	// Using single shard for stability (multi-shard causes port conflicts)
-	// IMPORTANT: Using main chain and txPool for consensus (not shard's separate pools)
-	const ShardCount = 1
-	shards := make(map[int]*sharding.Shard)
-	for i := 0; i < ShardCount; i++ {
-		shards[i] = &sharding.Shard{
-			ID:         i,
-			Validators: []string{"validator1"},
-			Chain:      chain,    // Use main chain (shared with API)
-			TxPool:     txPool,   // Use main txPool (shared with API)
-		}
-		fmt.Printf("🧱 Shard %d initialized\n", i)
+	// ============ Инициализация адаптивного шардирования ============
+	// Создаём конфигурацию для адаптивного шардирования
+	shardConfig := &sharding.ShardConfig{
+		MinShards:          1,  // Минимальное количество шардов
+		MaxShards:          8,  // Максимальное количество шардов
+		ScaleUpThreshold:   100,  // 100 TPS для масштабирования вверх
+		ScaleDownThreshold: 30,   // 30 TPS для масштабирования вниз
+		AdaptationInterval: 10 * time.Second, // Интервал адаптации
+		PredictionHorizon:  5,   // Горизонт прогнозирования (5 шагов)
 	}
+
+	// Создаём менеджер адаптивного шардирования
+	adaptiveShardManager = sharding.NewAdaptiveShardingManager(shardConfig)
+
+	// Инициализируем начальные шарды
+	var err error
+	err = adaptiveShardManager.InitializeShards(func(id int) *sharding.Shard {
+		return &sharding.Shard{
+			ID:         id,
+			Validators: []string{"validator1"},
+			Chain:      chain,  // Use main chain (shared with API)
+			TxPool:     txPool, // Use main txPool (shared with API)
+			Active:     true,
+		}
+	})
+	if err != nil {
+		panic("❌ Failed to initialize adaptive sharding: " + err.Error())
+	}
+
+	fmt.Printf("🧱 Adaptive sharding initialized: min=%d, max=%d shards\n",
+		shardConfig.MinShards, shardConfig.MaxShards)
+
+	// Запускаем адаптивный цикл
+	adaptiveShardManager.StartAdaptation()
+
+	// Получаем активные шарды для консенсуса
+	shards := adaptiveShardManager.Shards
 
 	// ============ Инициализация валидаторов ============
 	peerAddresses := []string{
@@ -240,6 +264,16 @@ func main() {
 			// Обновляем метрики
 			metrics.UpdateBlockProcessingMetrics(transactionCount, processingTime)
 
+			// Обновляем метрики адаптивного шардирования
+			if adaptiveShardManager != nil {
+				stats := adaptiveShardManager.GetStats()
+				fmt.Printf("📊 Adaptive Sharding Stats: shards=%v, predicted_tps=%.2f, load=%s, trend=%.4f\n",
+					stats["current_shards"],
+					stats["predicted_tps"],
+					stats["load_level"],
+					stats["trend"])
+			}
+
 			// Логируем для демонстрации
 			fmt.Printf("📈 Processed %d transactions in %v (TPS: %.2f)\n",
 				transactionCount, processingTime, float64(transactionCount)/processingTime.Seconds())
@@ -254,6 +288,12 @@ func main() {
 	go func() {
 		<-c
 		fmt.Println("\n🛑 Shutting down blockchain node...")
+
+		// Останавливаем адаптивное шардирование
+		if adaptiveShardManager != nil {
+			fmt.Println("⏹️ Stopping adaptive sharding...")
+			adaptiveShardManager.StopAdaptation()
+		}
 
 		// Останавливаем сервер мониторинга
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

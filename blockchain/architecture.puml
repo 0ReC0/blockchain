@@ -1,90 +1,121 @@
 @startuml
 skinparam componentStyle rectangle
+skinparam defaultFontSize 10
 
-package "Основные модули" {
+title Архитектура блокчейн-системы с адаптивным шардированием
+
+package "API и интеграция" #LightBlue {
+  [REST API] as rest_api
+  [KYC/AML] as kyc
+}
+
+package "Хранилище" #LightGreen {
   [Блокчейн] as blockchain
   [Пул транзакций] as txpool
 }
 
-package "Консенсус" {
-  [Переключатель консенсуса] as switcher
+package "Адаптивное шардирование" #LightYellow {
+  [AdaptiveShardingManager] as shard_mgr
+  [ARIMA-прогнозист] as arima
+  [ShardRouter] as router
+  
+  package "Шарды (1-8)" {
+    [Шард 1] as shard1
+    [Шард N] as shardN
+  }
+}
+
+package "Консенсус" #LightCyan {
+  [Переключатель PoS/BFT] as switcher
   [PoS] as pos
   [BFT] as bft
 }
 
-package "Валидаторы и репутация" {
+package "Валидаторы и репутация" #LightPink {
   [Валидатор] as validator
   [Пул валидаторов] as validator_pool
   [Система репутации] as reputation
 }
 
-package "Безопасность" {
+package "Безопасность" #LightGray {
+  [Аудит безопасности] as auditor
   [Защита от двойной траты] as double_spend
   [Защита от 51% атаки] as fiftyone
   [Защита от Sybil-атак] as sybil
-  [Система аудита безопасности] as auditor
 }
 
-package "Сеть (P2P)" {
-  [Менеджер пиров] as peer_mgr
-  [Протокол Gossip] as gossip
-  [TCP/SSL] as tcp
+package "Говернанс" #Purple {
+  [Менеджер предложений] as proposal
+  [Система голосований] as voting
 }
 
-package "API" {
-  [REST API] as rest_api
+package "Мониторинг" #SkyBlue {
+  [Prometheus-метрики] as monitoring
 }
 
-package "Говернанс" {
-  [Менеджер обновлений] as upgrade_mgr
-  [Система предложений] as proposal
-}
+' ---- Основные потоки данных ----
+[Внешние клиенты] --> rest_api : Транзакции
+rest_api --> kyc : KYC-проверка
+rest_api --> txpool : Добавление транзакций
 
-package "Криптография" {
-  [Подпись и проверка] as signature
-}
+' ---- Шардирование ----
+txpool --> router : Маршрутизация
+router --> shard1 : hash(tx) % N
+router --> shardN : hash(tx) % N
+shard_mgr --> shard1 : Управление
+shard_mgr --> shardN : Управление
+arima --> shard_mgr : Прогноз TPS
 
-' ---- Основные связи ----
-blockchain --> txpool
-switcher --> pos
-switcher --> bft
-
-' ---- Консенсус и валидаторы ----
-pos --> validator_pool : "выбор валидатора"
-bft --> validator_pool : "выбор валидатора"
-validator_pool "1..N" --> validator : "валидаторы"
-validator_pool --> reputation : "вес = баланс * репутация"
+' ---- Консенсус ----
+shard1 --> switcher : Консенсус
+shardN --> switcher : Консенсус
+switcher --> pos : PoS режим
+switcher --> bft : BFT режим
+pos --> validator_pool : Выбор валидатора
+bft --> validator_pool : Выбор валидатора
+validator_pool "1..N" --> validator : валидаторы
+validator_pool --> reputation : вес = stake × reputation
+validator --> blockchain : Добавление блоков
 
 ' ---- Безопасность ----
-double_spend --> auditor : "обнаружение двойной траты"
-fiftyone --> auditor : "обнаружение 51% атаки"
-sybil --> auditor : "обнаружение Sybil-атак"
-auditor --> rest_api : "логи безопасности"
-
-' ---- Сеть ----
-peer_mgr --> gossip : "управление пеерами"
-gossip --> tcp : "передача данных"
-gossip --> bft : "сообщения консенсуса"
-
-' ---- API ----
-rest_api --> blockchain : "запрос блоков"
-rest_api --> txpool : "добавление транзакций"
-rest_api --> switcher : "управление консенсусом"
-rest_api --> validator_pool : "информация о валидаторах"
-rest_api --> auditor : "логи безопасности"
-rest_api --> signature : "регистрация ключей"
+double_spend --> auditor : Детектирование
+fiftyone --> auditor : Мониторинг stake
+sybil --> auditor : Анализ поведения
+auditor --> rest_api : Логи безопасности
 
 ' ---- Говернанс ----
-upgrade_mgr --> proposal : "создание предложения"
-proposal --> reputation : "оценка валидаторов"
+proposal --> voting : Голосование
+voting --> reputation : Обновление параметров
 
-' ---- Криптография ----
-signature --> validator : "подпись блоков"
-signature --> bft : "подпись сообщений"
-signature --> rest_api : "проверка подлинности"
+' ---- Мониторинг ----
+monitoring --> switcher : Метрики TPS
+monitoring --> shard_mgr : Статистика шардов
 
 ' ---- Обратные связи ----
-blockchain --> switcher
-txpool --> switcher
-validator_pool --> switcher
+blockchain --> switcher : Статус блоков
+txpool --> switcher : Статус пула
+validator_pool --> switcher : Статус валидаторов
+
+note right of arima
+  ARIMA(1,1,1)
+  - Окно: 20 наблюдений
+  - Горизонт: 5 шагов
+  - Интервал: 30 сек
+end note
+
+note bottom of shard_mgr
+  Пороги масштабирования
+  (проектные значения):
+  - Scale Up: >1000 TPS
+  - Scale Down: <300 TPS
+  - Диапазон: 1-8 шардов
+  - Интервал: 30 сек
+end note
+
+note right of switcher
+  Переключатель консенсуса:
+  - Единый интерфейс для PoS и BFT
+  - Без остановки системы
+  - Сравнение в Главе 3
+end note
 @enduml
